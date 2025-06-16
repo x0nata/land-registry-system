@@ -1,6 +1,5 @@
 <div align="center">
-
-# LAND-REGISTRY-SYSTEM
+<h1 style="font-size: 2.5em;">LAND-REGISTRY-SYSTEM</h1>
 *Transforming Land Ownership with Seamless Innovation*
 
 <br>
@@ -26,8 +25,10 @@
 ![Nodemon](https://img.shields.io/badge/Nodemon-76D04B?logo=nodemon&logoColor=white)
 ![Cloudinary](https://img.shields.io/badge/Cloudinary-3448C5?logo=cloudinary&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
-
 </div>
+
+<br><br>
+
 
 ✨ **Transforming Land Ownership with Seamless Innovation**
 - 🏛️ **Government-Grade Security** - Role-based access control and authentication
