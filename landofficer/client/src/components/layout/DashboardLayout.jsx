@@ -19,7 +19,9 @@ import {
   UserCircleIcon,
   DocumentMagnifyingGlassIcon,
   MapIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  ExclamationTriangleIcon,
+  ArrowRightCircleIcon
 } from '@heroicons/react/24/outline';
 
 const DashboardLayout = ({ children }) => {
@@ -146,6 +148,16 @@ const DashboardLayout = ({ children }) => {
           name: 'Land Officers',
           icon: <UserGroupIcon className="w-5 h-5" />,
           path: '/admin/land-officers'
+        },
+        {
+          name: 'Dispute Management',
+          icon: <ExclamationTriangleIcon className="w-5 h-5" />,
+          path: '/admin/disputes'
+        },
+        {
+          name: 'Transfer Management',
+          icon: <ArrowRightCircleIcon className="w-5 h-5" />,
+          path: '/admin/transfers'
         },
         {
           name: 'Reports',

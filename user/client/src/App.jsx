@@ -23,6 +23,8 @@ import Payments from './pages/user/Payments';
 import PropertyPayment from './pages/user/PropertyPayment';
 import Profile from './pages/user/Profile';
 import Notifications from './pages/user/Notifications';
+import DisputeSubmission from './pages/user/DisputeSubmission';
+import MyDisputes from './pages/user/MyDisputes';
 import NotFound from './pages/NotFound';
 
 
@@ -169,6 +171,22 @@ function App() {
             element={
               <DashboardLayout>
                 <Notifications />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/disputes"
+            element={
+              <DashboardLayout>
+                <MyDisputes />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/disputes/submit"
+            element={
+              <DashboardLayout>
+                <DisputeSubmission />
               </DashboardLayout>
             }
           />

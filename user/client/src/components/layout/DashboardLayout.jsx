@@ -20,7 +20,8 @@ import {
   DocumentMagnifyingGlassIcon,
   MapIcon,
   MagnifyingGlassIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 
 const DashboardLayout = ({ children }) => {
@@ -91,6 +92,11 @@ const DashboardLayout = ({ children }) => {
         name: 'My Properties',
         icon: <HomeIcon className="w-5 h-5" />,
         path: '/properties'
+      },
+      {
+        name: 'My Disputes',
+        icon: <ExclamationTriangleIcon className="w-5 h-5" />,
+        path: '/disputes'
       },
       {
         name: 'Payments',

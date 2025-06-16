@@ -1,22 +1,43 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const navigate = useNavigate();
   const { user, logout, isAuthenticated } = useAuth();
+  const dropdownRef = useRef(null);
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
   };
 
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
-    toggleMenu();
+    setIsOpen(false);          // Always close the mobile menu
+    setIsDropdownOpen(false);  // Close the dropdown
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <header className="bg-primary text-white shadow-md">
@@ -43,30 +64,40 @@ const Header = () => {
             </Link>
 
             {isAuthenticated() ? (
-              <div className="relative group">
-                <button className="hover:text-secondary transition-colors">
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={toggleDropdown}
+                  aria-haspopup="true"
+                  aria-expanded={isDropdownOpen}
+                  className="hover:text-secondary transition-colors focus:outline-none"
+                >
                   {user.fullName}
                 </button>
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
-                  <Link
-                    to="/dashboard/user"
-                    className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
-                  >
-                    Dashboard
-                  </Link>
-                  <Link
-                    to="/profile"
-                    className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
-                  >
-                    Profile
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-accent hover:text-white"
-                  >
-                    Logout
-                  </button>
-                </div>
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+                    <Link
+                      to="/dashboard/user"
+                      className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      to="/profile"
+                      className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      Profile
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-accent hover:text-white"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex space-x-3">

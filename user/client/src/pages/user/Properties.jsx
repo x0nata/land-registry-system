@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { HomeIcon, DocumentTextIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
+import {
+  HomeIcon,
+  DocumentTextIcon,
+  PlusCircleIcon,
+  ArrowRightCircleIcon,
+  ClockIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon
+} from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import { getUserProperties } from '../../services/propertyService';
@@ -12,6 +20,7 @@ const Properties = () => {
   const [filteredProperties, setFilteredProperties] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
 
   // Fetch property data
   useEffect(() => {
@@ -34,7 +43,7 @@ const Properties = () => {
     loadProperties();
   }, []);
 
-  // Filter properties based on search term and status
+  // Filter properties based on search term, status, and type
   useEffect(() => {
     let filtered = properties;
 
@@ -52,8 +61,28 @@ const Properties = () => {
       filtered = filtered.filter(property => property.status === filterStatus);
     }
 
+    // Filter by type (transferred, disputed, etc.)
+    if (filterType !== 'all') {
+      switch (filterType) {
+        case 'transferred':
+          filtered = filtered.filter(property => property.isTransferred);
+          break;
+        case 'in_transfer':
+          filtered = filtered.filter(property => property.currentTransfer);
+          break;
+        case 'disputed':
+          filtered = filtered.filter(property => property.hasActiveDispute);
+          break;
+        case 'regular':
+          filtered = filtered.filter(property => !property.isTransferred && !property.currentTransfer && !property.hasActiveDispute);
+          break;
+        default:
+          break;
+      }
+    }
+
     setFilteredProperties(filtered);
-  }, [searchTerm, filterStatus, properties]);
+  }, [searchTerm, filterStatus, filterType, properties]);
 
   // Format date
   const formatDate = (dateString) => {
@@ -81,6 +110,35 @@ const Properties = () => {
     }
   };
 
+  // Get transfer status indicator
+  const getTransferIndicator = (property) => {
+    if (property.hasActiveDispute) {
+      return (
+        <div className="flex items-center text-red-600 text-xs">
+          <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
+          Active Dispute
+        </div>
+      );
+    }
+    if (property.isTransferred) {
+      return (
+        <div className="flex items-center text-green-600 text-xs">
+          <CheckCircleIcon className="h-3 w-3 mr-1" />
+          Transferred Property
+        </div>
+      );
+    }
+    if (property.currentTransfer) {
+      return (
+        <div className="flex items-center text-blue-600 text-xs">
+          <ClockIcon className="h-3 w-3 mr-1" />
+          Transfer in Progress
+        </div>
+      );
+    }
+    return null;
+  };
+
   if (loading) {
     return <div className="flex justify-center items-center h-[70vh]">Loading...</div>;
   }
@@ -105,7 +163,7 @@ const Properties = () => {
 
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
           <div className="flex-1">
             <input
               type="text"
@@ -128,6 +186,19 @@ const Properties = () => {
               <option value="rejected">Rejected</option>
             </select>
           </div>
+          <div className="w-full md:w-48">
+            <select
+              className="form-input w-full"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              <option value="regular">Regular Properties</option>
+              <option value="transferred">Transferred Properties</option>
+              <option value="in_transfer">Transfer in Progress</option>
+              <option value="disputed">With Active Disputes</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -137,7 +208,7 @@ const Properties = () => {
           <HomeIcon className="h-12 w-12 mx-auto text-gray-400" />
           <h2 className="mt-4 text-xl font-semibold">No Properties Found</h2>
           <p className="mt-2 text-gray-500">
-            {searchTerm || filterStatus !== 'all'
+            {searchTerm || filterStatus !== 'all' || filterType !== 'all'
               ? 'Try adjusting your search or filter criteria'
               : 'You have not registered any properties yet'}
           </p>
@@ -159,6 +230,7 @@ const Properties = () => {
                     <p className="text-gray-600">
                       {property.location.subCity} Sub-city, Kebele {property.location.kebele}
                     </p>
+                    {getTransferIndicator(property)}
                   </div>
                   <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(property.status)} capitalize`}>
                     {property.status.replace('_', ' ')}
@@ -175,6 +247,20 @@ const Properties = () => {
                   <p className="text-gray-700">
                     <span className="font-medium">Registered:</span> {formatDate(property.registrationDate)}
                   </p>
+
+                  {/* Transfer History Summary */}
+                  {property.transferHistory && property.transferHistory.length > 0 && (
+                    <p className="text-gray-700">
+                      <span className="font-medium">Transfers:</span> {property.transferHistory.length} transfer(s)
+                    </p>
+                  )}
+
+                  {/* Ownership History Summary */}
+                  {property.ownershipHistory && property.ownershipHistory.length > 1 && (
+                    <p className="text-gray-700">
+                      <span className="font-medium">Previous Owners:</span> {property.ownershipHistory.length - 1}
+                    </p>
+                  )}
                 </div>
 
                 <div className="mt-4 pt-4 border-t">

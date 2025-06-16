@@ -87,6 +87,57 @@ const propertySchema = new mongoose.Schema(
         ref: "Payment",
       },
     ],
+    // Transfer-related fields
+    isTransferred: {
+      type: Boolean,
+      default: false,
+    },
+    transferHistory: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "PropertyTransfer",
+      },
+    ],
+    currentTransfer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PropertyTransfer",
+    },
+    // Dispute-related fields
+    hasActiveDispute: {
+      type: Boolean,
+      default: false,
+    },
+    disputes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Dispute",
+      },
+    ],
+    // Property history tracking
+    ownershipHistory: [
+      {
+        owner: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        startDate: {
+          type: Date,
+          required: true,
+        },
+        endDate: {
+          type: Date,
+        },
+        transferType: {
+          type: String,
+          enum: ["initial_registration", "sale", "inheritance", "gift", "court_order", "government_acquisition", "exchange", "other"],
+        },
+        transferReference: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "PropertyTransfer",
+        },
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -95,6 +146,9 @@ const propertySchema = new mongoose.Schema(
 // Note: plotNumber already has a unique index from the schema definition
 propertySchema.index({ owner: 1 });
 propertySchema.index({ status: 1 });
+propertySchema.index({ isTransferred: 1 });
+propertySchema.index({ hasActiveDispute: 1 });
+propertySchema.index({ "ownershipHistory.owner": 1 });
 
 const Property = mongoose.model("Property", propertySchema);
 

@@ -21,13 +21,35 @@ const PropertyRegistration = () => {
   const propertyDetailsSchema = Yup.object({
     plotNumber: Yup.string().required('Plot number is required'),
     propertyType: Yup.string().required('Property type is required'),
+    registrationType: Yup.string().required('Registration type is required'),
     area: Yup.number()
       .required('Area is required')
       .positive('Area must be a positive number'),
     subCity: Yup.string().required('Sub-city is required'),
     kebele: Yup.string().required('Kebele is required'),
     streetName: Yup.string(),
-    houseNumber: Yup.string()
+    houseNumber: Yup.string(),
+    // Transfer-specific fields
+    previousOwnerEmail: Yup.string().when('registrationType', {
+      is: 'transferred_property',
+      then: (schema) => schema.email('Invalid email').required('Previous owner email is required'),
+      otherwise: (schema) => schema.notRequired()
+    }),
+    transferType: Yup.string().when('registrationType', {
+      is: 'transferred_property',
+      then: (schema) => schema.required('Transfer type is required'),
+      otherwise: (schema) => schema.notRequired()
+    }),
+    transferValue: Yup.number().when('registrationType', {
+      is: 'transferred_property',
+      then: (schema) => schema.min(0, 'Transfer value must be positive').nullable(),
+      otherwise: (schema) => schema.notRequired()
+    }),
+    transferReason: Yup.string().when('registrationType', {
+      is: 'transferred_property',
+      then: (schema) => schema.required('Transfer details are required').max(1000, 'Transfer details cannot exceed 1000 characters'),
+      otherwise: (schema) => schema.notRequired()
+    })
   });
 
   const ownerDetailsSchema = Yup.object({
@@ -134,43 +156,90 @@ const PropertyRegistration = () => {
   // Handle form submission
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
-      // Map form values to API expected format
-      const propertyData = {
-        location: {
-          kebele: values.kebele,
-          subCity: values.subCity,
-          coordinates: {
-            latitude: values.latitude || null,
-            longitude: values.longitude || null
+      // Check if this is a transfer registration
+      if (values.registrationType === 'transferred_property') {
+        // Handle transfer registration - register property with transfer metadata
+        const propertyData = {
+          location: {
+            kebele: values.kebele,
+            subCity: values.subCity,
+            coordinates: {
+              latitude: values.latitude || null,
+              longitude: values.longitude || null
+            }
+          },
+          plotNumber: values.plotNumber,
+          area: parseFloat(values.area),
+          propertyType: values.propertyType,
+          // Add transfer metadata to the property registration
+          transferInfo: {
+            isTransferRegistration: true,
+            previousOwnerEmail: values.previousOwnerEmail,
+            transferType: values.transferType,
+            transferValue: values.transferValue ? {
+              amount: parseFloat(values.transferValue),
+              currency: 'ETB'
+            } : null,
+            transferReason: values.transferReason
           }
-        },
-        plotNumber: values.plotNumber,
-        area: parseFloat(values.area),
-        propertyType: values.propertyType
-      };
+        };
 
-      console.log('Submitting property data:', propertyData);
+        console.log('Submitting transferred property registration:', propertyData);
+        const propertyResponse = await registerProperty(propertyData);
 
-      // Step 1: Register the property
-      const propertyResponse = await registerProperty(propertyData);
-      console.log('Property registered successfully:', propertyResponse);
+        console.log('Transferred property registered:', propertyResponse);
 
-      // Step 2: Upload documents if property was created successfully
-      if (propertyResponse && propertyResponse._id) {
-        console.log('Uploading documents for property:', propertyResponse._id);
+        // Upload documents
+        if (propertyResponse && propertyResponse._id) {
+          try {
+            const uploadedDocuments = await uploadDocuments(propertyResponse._id);
+            console.log('Transfer documents uploaded successfully:', uploadedDocuments);
 
-        try {
-          const uploadedDocuments = await uploadDocuments(propertyResponse._id);
-          console.log('Documents uploaded successfully:', uploadedDocuments);
-
-          toast.success(`Property registration submitted successfully! ${uploadedDocuments.length} documents uploaded. Your application is now pending review.`);
-        } catch (documentError) {
-          console.error('Document upload error:', documentError);
-          // Property was created but documents failed to upload
-          toast.warning(`Property registered successfully, but some documents failed to upload: ${documentError.message}. You can upload them later from your dashboard.`);
+            toast.success(`Transferred property registration submitted successfully! ${uploadedDocuments.length} documents uploaded. The transfer will be verified and processed by administrators.`);
+          } catch (documentError) {
+            console.error('Document upload error:', documentError);
+            toast.warning(`Property registered successfully, but some documents failed to upload: ${documentError.message}. You can upload them later from your dashboard.`);
+          }
         }
       } else {
-        toast.success('Property registration submitted successfully! Your application is now pending review.');
+        // Handle regular property registration
+        const propertyData = {
+          location: {
+            kebele: values.kebele,
+            subCity: values.subCity,
+            coordinates: {
+              latitude: values.latitude || null,
+              longitude: values.longitude || null
+            }
+          },
+          plotNumber: values.plotNumber,
+          area: parseFloat(values.area),
+          propertyType: values.propertyType
+        };
+
+        console.log('Submitting property data:', propertyData);
+
+        // Step 1: Register the property
+        const propertyResponse = await registerProperty(propertyData);
+        console.log('Property registered successfully:', propertyResponse);
+
+        // Step 2: Upload documents if property was created successfully
+        if (propertyResponse && propertyResponse._id) {
+          console.log('Uploading documents for property:', propertyResponse._id);
+
+          try {
+            const uploadedDocuments = await uploadDocuments(propertyResponse._id);
+            console.log('Documents uploaded successfully:', uploadedDocuments);
+
+            toast.success(`Property registration submitted successfully! ${uploadedDocuments.length} documents uploaded. Your application is now pending review.`);
+          } catch (documentError) {
+            console.error('Document upload error:', documentError);
+            // Property was created but documents failed to upload
+            toast.warning(`Property registered successfully, but some documents failed to upload: ${documentError.message}. You can upload them later from your dashboard.`);
+          }
+        } else {
+          toast.success('Property registration submitted successfully! Your application is now pending review.');
+        }
       }
 
       // Redirect to dashboard
@@ -252,11 +321,18 @@ const PropertyRegistration = () => {
             // Property details
             plotNumber: '',
             propertyType: '',
+            registrationType: '',
             area: '',
             subCity: '',
             kebele: '',
             streetName: '',
             houseNumber: '',
+            // Transfer-specific fields
+            isTransferRegistration: false,
+            previousOwnerEmail: '',
+            transferType: '',
+            transferValue: '',
+            transferReason: '',
             // Owner details
             ownerFullName: '',
             ownerIdNumber: '',
@@ -309,6 +385,137 @@ const PropertyRegistration = () => {
                       <ErrorMessage name="propertyType" component="div" className="form-error" />
                     </div>
                   </div>
+
+                  <div>
+                    <label htmlFor="registrationType" className="form-label">
+                      Registration Type <span className="text-red-500">*</span>
+                    </label>
+                    <Field
+                      as="select"
+                      id="registrationType"
+                      name="registrationType"
+                      className="form-input"
+                      onChange={(e) => {
+                        setFieldValue('registrationType', e.target.value);
+                        // If transferred property is selected, show transfer form
+                        if (e.target.value === 'transferred_property') {
+                          setFieldValue('isTransferRegistration', true);
+                        } else {
+                          setFieldValue('isTransferRegistration', false);
+                        }
+                      }}
+                    >
+                      <option value="">Select registration type</option>
+                      <option value="new_registration">New Property Registration</option>
+                      <option value="transferred_property">Register a Transferred Property</option>
+                    </Field>
+                    <ErrorMessage name="registrationType" component="div" className="form-error" />
+                    {values.registrationType === 'transferred_property' && (
+                      <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <p className="text-sm text-blue-800">
+                          <strong>Transferred Property Registration:</strong> Use this option if a property has been
+                          transferred to you through sale, inheritance, gift, or other legal means. You will need to
+                          provide details about the previous owner and transfer documentation. The transfer will be
+                          verified by administrators before the property is registered in your name.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Transfer-specific fields */}
+                  {values.registrationType === 'transferred_property' && (
+                    <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+                      <h3 className="text-lg font-semibold text-gray-800">Transfer Information</h3>
+
+                      <div>
+                        <label htmlFor="previousOwnerEmail" className="form-label">
+                          Previous Owner Email <span className="text-red-500">*</span>
+                        </label>
+                        <Field
+                          type="email"
+                          id="previousOwnerEmail"
+                          name="previousOwnerEmail"
+                          className="form-input"
+                          placeholder="Enter the email of the previous property owner"
+                        />
+                        <ErrorMessage name="previousOwnerEmail" component="div" className="form-error" />
+                        <p className="text-xs text-gray-600 mt-1">
+                          The previous owner must be registered in the system for the transfer to be processed.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="transferType" className="form-label">
+                          Transfer Type <span className="text-red-500">*</span>
+                        </label>
+                        <Field
+                          as="select"
+                          id="transferType"
+                          name="transferType"
+                          className="form-input"
+                        >
+                          <option value="">Select transfer type</option>
+                          <option value="sale">Sale/Purchase</option>
+                          <option value="inheritance">Inheritance</option>
+                          <option value="gift">Gift</option>
+                          <option value="court_order">Court Order</option>
+                          <option value="government_acquisition">Government Acquisition</option>
+                          <option value="exchange">Property Exchange</option>
+                          <option value="other">Other</option>
+                        </Field>
+                        <ErrorMessage name="transferType" component="div" className="form-error" />
+                      </div>
+
+                      <div>
+                        <label htmlFor="transferValue" className="form-label">
+                          Transfer Value (ETB) <span className="text-gray-500">(Optional)</span>
+                        </label>
+                        <Field
+                          type="number"
+                          id="transferValue"
+                          name="transferValue"
+                          className="form-input"
+                          placeholder="Enter the monetary value of the transfer"
+                          min="0"
+                          step="0.01"
+                        />
+                        <ErrorMessage name="transferValue" component="div" className="form-error" />
+                        <p className="text-xs text-gray-600 mt-1">
+                          Required for sales and exchanges. Leave blank for gifts and inheritance.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="transferReason" className="form-label">
+                          Transfer Details <span className="text-red-500">*</span>
+                        </label>
+                        <Field
+                          as="textarea"
+                          id="transferReason"
+                          name="transferReason"
+                          rows="3"
+                          className="form-input"
+                          placeholder="Provide detailed information about the transfer including dates, circumstances, and any relevant legal documentation..."
+                        />
+                        <ErrorMessage name="transferReason" component="div" className="form-error" />
+                      </div>
+
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                        <h4 className="text-sm font-medium text-yellow-800 mb-2">Required Documentation:</h4>
+                        <ul className="text-sm text-yellow-700 space-y-1">
+                          <li>• Transfer agreement or sale contract</li>
+                          <li>• Previous owner's identification documents</li>
+                          <li>• Your identification documents</li>
+                          <li>• Tax clearance certificates (if applicable)</li>
+                          <li>• Court orders or inheritance certificates (if applicable)</li>
+                          <li>• Any other supporting legal documents</li>
+                        </ul>
+                        <p className="text-sm text-yellow-700 mt-2">
+                          <strong>Note:</strong> All transfer documents will be verified by land officers before approval.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label htmlFor="area" className="form-label">

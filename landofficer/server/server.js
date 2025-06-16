@@ -21,6 +21,8 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import applicationLogRoutes from "./routes/applicationLogRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import reportsRoutes from "./routes/reportsRoutes.js";
+import disputeRoutes from "./routes/disputeRoutes.js";
+import transferRoutes from "./routes/transferRoutes.js";
 
 
 // Load environment variables
@@ -60,6 +62,8 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/logs", applicationLogRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/reports", reportsRoutes);
+app.use("/api/disputes", disputeRoutes);
+app.use("/api/transfers", transferRoutes);
 
 // TODO: Add Admin routes
 // import adminRoutes from "./routes/adminRoutes.js";

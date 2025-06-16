@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import SmartRegisterButton from '../components/common/SmartRegisterButton';
 
 const Home = () => {
   return (
@@ -14,12 +15,9 @@ const Home = () => {
               Streamline your property registration process with our secure, efficient, and user-friendly system.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link
-                to="/register"
+              <SmartRegisterButton
                 className="btn bg-secondary text-white hover:bg-secondary-dark px-6 py-3 rounded-md font-medium"
-              >
-                Register Now
-              </Link>
+              />
               <Link
                 to="/services"
                 className="btn border-2 border-white text-white hover:bg-white hover:text-primary px-6 py-3 rounded-md font-medium"
@@ -133,62 +131,11 @@ const Home = () => {
             </div>
           </div>
           <div className="text-center mt-12">
-            <Link
-              to="/register"
+            <SmartRegisterButton
               className="btn bg-primary text-white hover:bg-primary-dark px-6 py-3 rounded-md font-medium"
-            >
-              Get Started Now
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">What Our Users Say</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Testimonial 1 */}
-            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-gray-200 rounded-full mr-4"></div>
-                <div>
-                  <h4 className="font-semibold">Abebe Kebede</h4>
-                  <p className="text-gray-500 text-sm">Property Owner</p>
-                </div>
-              </div>
-              <p className="text-gray-600">
-                "The new property registration system has made the process so much easier. What used to take weeks now takes just a few days!"
-              </p>
-            </div>
-
-            {/* Testimonial 2 */}
-            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-gray-200 rounded-full mr-4"></div>
-                <div>
-                  <h4 className="font-semibold">Sara Haile</h4>
-                  <p className="text-gray-500 text-sm">Real Estate Agent</p>
-                </div>
-              </div>
-              <p className="text-gray-600">
-                "As a real estate agent, I appreciate how transparent the process has become. I can track applications and keep my clients informed at every step."
-              </p>
-            </div>
-
-            {/* Testimonial 3 */}
-            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-gray-200 rounded-full mr-4"></div>
-                <div>
-                  <h4 className="font-semibold">Dawit Mengistu</h4>
-                  <p className="text-gray-500 text-sm">Business Owner</p>
-                </div>
-              </div>
-              <p className="text-gray-600">
-                "The online payment system is secure and convenient. I no longer have to visit multiple offices to complete my property registration."
-              </p>
-            </div>
+              unauthenticatedText="Get Started Now"
+              authenticatedText="Register Property"
+            />
           </div>
         </div>
       </section>
@@ -201,12 +148,9 @@ const Home = () => {
             Join thousands of property owners who have simplified their registration process with our system.
           </p>
           <div className="flex justify-center gap-4 flex-wrap">
-            <Link
-              to="/register"
+            <SmartRegisterButton
               className="btn bg-secondary text-white hover:bg-secondary-dark px-6 py-3 rounded-md font-medium"
-            >
-              Register Now
-            </Link>
+            />
             <Link
               to="/contact"
               className="btn border-2 border-white text-white hover:bg-white hover:text-primary px-6 py-3 rounded-md font-medium"
