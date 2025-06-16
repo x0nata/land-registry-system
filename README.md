@@ -6,7 +6,6 @@
   <em>Transforming Land Ownership with Seamless Innovation</em>
 
   <div class="badges">
-    <img src="https://img.shields.io/badge/last%20commit-today-blue?style=flat&logo=git" alt="last commit">
     <img src="https://img.shields.io/badge/javascript-99.5%25-blue?logo=javascript" alt="javascript">
     <img src="https://img.shields.io/badge/languages-4-informational?logo=code" alt="languages">
   </div>
