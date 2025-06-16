@@ -1,13 +1,15 @@
 <div align="center">
-<h1 style="font-size: 2.5em;">LAND-REGISTRY-SYSTEM</h1><br>
+<h1 style="font-size: 2.5em;">LAND-REGISTRY-SYSTEM</h1>
+
 #Transforming Land Ownership with Seamless Innovation
+
 <br>
 ![javascript](https://img.shields.io/badge/javascript-99.5%25-blue?logo=javascript)
 ![languages](https://img.shields.io/badge/languages-4-informational?logo=code)
+
 <br>
 **Built with the tools and technologies:**
 <br>
-
 ![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)
 ![npm](https://img.shields.io/badge/npm-CB3837?logo=npm&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-black?logo=express&logoColor=white)
