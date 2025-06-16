@@ -77,5 +77,3 @@ chmod +x start-dev.sh && ./start-dev.sh
 - **Land Officer Portal**: http://localhost:3000
 - **User Portal**: http://localhost:3002
 
-<!-- background image -->
-![](https://images.unsplash.com/photo-1541339907198-e08756dedf3f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80)
