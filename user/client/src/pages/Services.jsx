@@ -1,16 +1,17 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  DocumentTextIcon, 
-  HomeIcon, 
-  DocumentDuplicateIcon, 
-  ArrowPathIcon, 
-  ShieldCheckIcon, 
+import {
+  DocumentTextIcon,
+  HomeIcon,
+  DocumentDuplicateIcon,
+  ArrowPathIcon,
+  ShieldCheckIcon,
   MagnifyingGlassIcon,
   UserGroupIcon,
   ClipboardDocumentCheckIcon,
   CurrencyDollarIcon
 } from '@heroicons/react/24/outline';
+import SmartRegisterButton from '../components/common/SmartRegisterButton';
 
 const Services = () => {
   return (
@@ -54,9 +55,11 @@ const Services = () => {
                 Property subdivision
               </li>
             </ul>
-            <Link to="/register" className="text-primary font-medium hover:text-primary-dark">
-              Get Started →
-            </Link>
+            <SmartRegisterButton
+              className="text-primary font-medium hover:text-primary-dark"
+              unauthenticatedText="Get Started →"
+              authenticatedText="Register Property →"
+            />
           </div>
           
           {/* Document Verification */}
@@ -268,9 +271,9 @@ const Services = () => {
           Join thousands of satisfied property owners who have secured their land rights through our platform.
         </p>
         <div className="flex flex-wrap justify-center gap-4">
-          <Link to="/register" className="bg-white text-primary px-6 py-3 rounded-md font-medium hover:bg-gray-100 transition-colors">
-            Register Now
-          </Link>
+          <SmartRegisterButton
+            className="bg-white text-primary px-6 py-3 rounded-md font-medium hover:bg-gray-100 transition-colors"
+          />
           <Link to="/contact" className="bg-transparent border-2 border-white text-white px-6 py-3 rounded-md font-medium hover:bg-white hover:text-primary transition-colors">
             Contact Us
           </Link>

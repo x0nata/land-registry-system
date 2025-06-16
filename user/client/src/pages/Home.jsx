@@ -32,6 +32,8 @@ const Home = () => {
         </div>
       </section>
 
+
+
       {/* Features Section */}
       <section className="py-16">
         <div className="container mx-auto px-4">

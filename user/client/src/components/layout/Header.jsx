@@ -14,15 +14,15 @@ const Header = () => {
     setIsOpen(!isOpen);
   };
 
-  const toggleDropdown = () => {
-    setIsDropdownOpen(!isDropdownOpen);
-  };
-
   const handleLogout = () => {
     logout();
     navigate('/');
     setIsOpen(false);          // Always close the mobile menu
     setIsDropdownOpen(false);  // Close the dropdown
+  };
+
+  const toggleDropdown = () => {
+    setIsDropdownOpen((prev) => !prev);
   };
 
   // Close dropdown when clicking outside
@@ -70,9 +70,9 @@ const Header = () => {
                   onClick={toggleDropdown}
                   aria-haspopup="true"
                   aria-expanded={isDropdownOpen}
-                  className="hover:text-secondary transition-colors focus:outline-none"
+                  className="hover:text-secondary transition-colors px-4 py-2 rounded focus:outline-none"
                 >
-                  {user.fullName}
+                  {user?.fullName || "Account"}
                 </button>
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
@@ -100,12 +100,18 @@ const Header = () => {
                 )}
               </div>
             ) : (
-              <div className="flex space-x-3">
+              <div className="flex space-x-4">
                 <Link
                   to="/login"
                   className="hover:text-secondary transition-colors"
                 >
                   Login
+                </Link>
+                <Link
+                  to="/register"
+                  className="hover:text-secondary transition-colors"
+                >
+                  Register
                 </Link>
               </div>
             )}
@@ -191,10 +197,9 @@ const Header = () => {
                 >
                   Login
                 </Link>
-                <div className="border-t border-gray-200 my-2 pt-2"></div>
                 <Link
                   to="/register"
-                  className="bg-secondary text-white px-4 py-1 rounded-md hover:bg-secondary-dark transition-colors inline-block text-center"
+                  className="block hover:text-secondary transition-colors py-1"
                   onClick={toggleMenu}
                 >
                   Register
