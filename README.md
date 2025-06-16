@@ -1,10 +1,18 @@
+<div align="center">
+
 # LAND-REGISTRY-SYSTEM
 *Transforming Land Ownership with Seamless Innovation*
+
+<br>
 
 ![javascript](https://img.shields.io/badge/javascript-99.5%25-blue?logo=javascript)
 ![languages](https://img.shields.io/badge/languages-4-informational?logo=code)
 
+<br>
+
 **Built with the tools and technologies:**
+
+<br>
 
 ![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)
 ![npm](https://img.shields.io/badge/npm-CB3837?logo=npm&logoColor=white)
@@ -19,6 +27,7 @@
 ![Cloudinary](https://img.shields.io/badge/Cloudinary-3448C5?logo=cloudinary&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
 
+</div>
 
 ✨ **Transforming Land Ownership with Seamless Innovation**
 - 🏛️ **Government-Grade Security** - Role-based access control and authentication
@@ -56,17 +65,19 @@
 - Git
 
 ## 🚀 1-Minute Setup
-```bash
 # Clone the repository
+```bash
 git clone https://github.com/your-repo/land-registry-system.git
 cd land-registry-system
-
+```
 # Start development environment (Windows)
+```bash
 ./start-dev.bat
-
+```
 # Start development environment (Linux/Mac)
+```bash
 chmod +x start-dev.sh && ./start-dev.sh
-
+```
 ## 🌐 Access the Applications
 - **Land Officer Portal**: `http://localhost:3000`
 - **User Portal**: `http://localhost:3002`
