@@ -1,9 +1,7 @@
 <div align="center">
-<h1 style="font-size: 2.5em;">LAND-REGISTRY-SYSTEM</h1>
+<h1 style="font-size: 5em;">LAND-REGISTRY-SYSTEM</h1>
 
 # Transforming Land Ownership with Seamless Innovation
-<br>
-
 ![javascript](https://img.shields.io/badge/javascript-99.5%25-blue?logo=javascript)
 ![languages](https://img.shields.io/badge/languages-4-informational?logo=code)
 <br>
