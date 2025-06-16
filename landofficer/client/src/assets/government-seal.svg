@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer circle -->
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#1a365d" stroke-width="4"/>
+  
+  <!-- Inner circle -->
+  <circle cx="100" cy="100" r="70" fill="none" stroke="#1a365d" stroke-width="2"/>
+  
+  <!-- Text -->
+  <text x="100" y="85" text-anchor="middle" fill="#1a365d" font-family="Arial" font-size="16" font-weight="bold">
+    GOVERNMENT
+  </text>
+  <text x="100" y="115" text-anchor="middle" fill="#1a365d" font-family="Arial" font-size="16" font-weight="bold">
+    SEAL
+  </text>
+  
+  <!-- Decorative elements -->
+  <path d="M100 30 L110 50 L90 50 Z" fill="#1a365d"/>
+  <path d="M100 170 L110 150 L90 150 Z" fill="#1a365d"/>
+  <path d="M30 100 L50 110 L50 90 Z" fill="#1a365d"/>
+  <path d="M170 100 L150 110 L150 90 Z" fill="#1a365d"/>
+</svg> 
