@@ -29,7 +29,6 @@
 - 🏛️ **Government-Grade Security** - Role-based access control and authentication
 - 📄 **Document Management** - GridFS storage with verification workflows
 - 💳 **Payment Integration** - Secure Chapa payment gateway integration
-- 🗺️ **Interactive Maps** - Leaflet-based property visualization
 - ⚖️ **Legal Compliance** - Ethiopian property law standards
 - 📊 **Comprehensive Reporting** - Real-time analytics and audit trails
 
@@ -61,19 +60,19 @@
 - Git
 
 ## 🚀 1-Minute Setup
-# Clone the repository
+ Clone the repository
 ```bash
 git clone https://github.com/your-repo/land-registry-system.git
 cd land-registry-system
 ```
-# Start development environment (Windows)
+ Start development environment (Windows)
 ```bash
 ./start-dev.bat
 ```
-# Start development environment (Linux/Mac)
+ Start development environment (Linux/Mac)
 ```bash
 chmod +x start-dev.sh && ./start-dev.sh
 ```
-## 🌐 Access the Applications
+# 🌐 Access the Applications
 - **Land Officer Portal**: `http://localhost:3000`
 - **User Portal**: `http://localhost:3002`
