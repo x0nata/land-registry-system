@@ -125,3 +125,13 @@ export const verifyDocument = async (propertyId, documentId, isVerified, notes) 
     throw error.response?.data || { message: 'Failed to verify document' };
   }
 };
+
+// Get property transfer history (land officer/admin only)
+export const getPropertyTransferHistory = async (propertyId) => {
+  try {
+    const response = await api.get(`/properties/${propertyId}/transfers`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'Failed to fetch property transfer history' };
+  }
+};

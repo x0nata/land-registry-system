@@ -338,7 +338,7 @@ const LandOfficerDashboard = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <Link
-                        to={`/land-officer/property-verification/${application._id}`}
+                        to={`/landofficer/property-detail-verification/${application._id}`}
                         className="text-primary hover:text-primary-dark"
                         title="Review Details"
                       >
@@ -390,7 +390,7 @@ const LandOfficerDashboard = () => {
             </Link>
 
             <Link
-              to="/land-officer/payment-verification"
+              to="/landofficer/payment-verification"
               className="block w-full p-3 bg-accent text-white rounded-lg hover:bg-accent-dark transition-colors text-center"
             >
               <CurrencyDollarIcon className="h-5 w-5 mx-auto mb-1" />

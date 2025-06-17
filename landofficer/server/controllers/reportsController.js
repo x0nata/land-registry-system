@@ -9,7 +9,6 @@ export const getPropertyStats = async (req, res) => {
   try {
     // Check if database is connected
     if (mongoose.connection.readyState !== 1) {
-      console.log("Database not connected, returning default stats");
       return res.status(200).json({
         totalProperties: 0,
         pendingProperties: 0,
@@ -71,8 +70,6 @@ export const getPropertyStats = async (req, res) => {
       timeframe
     });
   } catch (error) {
-    console.error("Error fetching property statistics:", error);
-
     // Return default stats instead of error to prevent UI crashes
     res.status(200).json({
       totalProperties: 0,
@@ -154,7 +151,6 @@ export const getUserStats = async (req, res) => {
       timeframe
     });
   } catch (error) {
-    console.error("Error fetching user statistics:", error);
     res.status(500).json({ message: "Server error while fetching user statistics" });
   }
 };
@@ -180,7 +176,6 @@ export const getDocumentStats = async (req, res) => {
 
     res.json(documentStats);
   } catch (error) {
-    console.error("Error fetching document statistics:", error);
     res.status(500).json({ message: "Server error while fetching document statistics" });
   }
 };
@@ -210,7 +205,6 @@ export const getPaymentStats = async (req, res) => {
 
     res.json(paymentStats);
   } catch (error) {
-    console.error("Error fetching payment statistics:", error);
     res.status(500).json({ message: "Server error while fetching payment statistics" });
   }
 };
@@ -300,7 +294,6 @@ export const generateApplicationReport = async (req, res) => {
       timeframe
     });
   } catch (error) {
-    console.error("Error generating application report:", error);
     res.status(500).json({ message: "Server error while generating application report" });
   }
 };
@@ -339,7 +332,6 @@ export const generateSummaryReport = async (req, res) => {
 
     res.json(summaryReport);
   } catch (error) {
-    console.error("Error generating summary report:", error);
     res.status(500).json({ message: "Server error while generating summary report" });
   }
 };
@@ -360,7 +352,6 @@ export const downloadReport = async (req, res) => {
       downloadUrl: `/downloads/${reportType}-report.${format}`
     });
   } catch (error) {
-    console.error("Error downloading report:", error);
     res.status(500).json({ message: "Server error while downloading report" });
   }
 };
@@ -390,7 +381,6 @@ export const getActivityLogs = async (req, res) => {
 
     res.json(activityLogs);
   } catch (error) {
-    console.error("Error fetching activity logs:", error);
     res.status(500).json({ message: "Server error while fetching activity logs" });
   }
 };
@@ -412,7 +402,6 @@ export const getPerformanceMetrics = async (req, res) => {
 
     res.json(performanceMetrics);
   } catch (error) {
-    console.error("Error fetching performance metrics:", error);
     res.status(500).json({ message: "Server error while fetching performance metrics" });
   }
 };

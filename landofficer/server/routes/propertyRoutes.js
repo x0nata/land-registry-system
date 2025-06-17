@@ -12,6 +12,7 @@ import {
   approveProperty,
   rejectProperty,
   setPropertyUnderReview,
+  getPropertyTransferHistory,
 } from "../controllers/propertyController.js";
 import { authenticate, isAdmin, isLandOfficer } from "../middleware/auth.js";
 import Property from "../models/Property.js";
@@ -63,8 +64,16 @@ router.get("/", authenticate, isLandOfficer, getAllProperties);
 
 // @route   GET /api/properties/:id
 // @desc    Get a property by ID
-// @access  Private
+
+// more specific route must come first
+router.get("/:id/transfers", authenticate, isLandOfficer, getPropertyTransferHistory);
+
+// keep generic route after the specific one
 router.get("/:id", authenticate, getPropertyById);
+// @route   GET /api/properties/:id/transfers
+// @desc    Get property transfer history
+// @access  Private (Admin, Land Officer)
+router.get("/:id/transfers", authenticate, isLandOfficer, getPropertyTransferHistory);
 
 // @route   PUT /api/properties/:id
 // @desc    Update a property

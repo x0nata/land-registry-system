@@ -1,4 +1,5 @@
 import Property from "../models/Property.js";
+import PropertyTransfer from "../models/PropertyTransfer.js";
 import ApplicationLog from "../models/ApplicationLog.js";
 import { validationResult } from "express-validator";
 
@@ -511,5 +512,72 @@ export const setPropertyUnderReview = async (req, res) => {
     res
       .status(500)
       .json({ message: "Server error while updating property status" });
+  }
+};
+
+// @desc    Get property transfer history
+// @route   GET /api/properties/:id/transfers
+// @access  Private (Admin, Land Officer)
+export const getPropertyTransferHistory = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    // Check if user is authorized to view this property's transfer history
+    if (
+      property.owner.toString() !== req.user._id.toString() &&
+      !["admin", "landOfficer"].includes(req.user.role)
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to view this property's transfer history" });
+    }
+
+    // Get all transfers for this property
+    const transfers = await PropertyTransfer.find({ property: req.params.id })
+      .populate('previousOwner', 'fullName email phoneNumber nationalId')
+      .populate('newOwner', 'fullName email phoneNumber nationalId')
+      .populate('timeline.performedBy', 'fullName')
+      .populate('approvals.approver', 'fullName')
+      .populate('complianceChecks.ethiopianLawCompliance.checkedBy', 'fullName')
+      .populate('complianceChecks.taxClearance.checkedBy', 'fullName')
+      .populate('complianceChecks.fraudPrevention.checkedBy', 'fullName')
+      .sort({ initiationDate: -1 });
+
+    // Get current transfer if any
+    const currentTransfer = transfers.find(transfer =>
+      ['initiated', 'documents_pending', 'under_review', 'verification_pending', 'approved'].includes(transfer.status)
+    );
+
+    // Get completed transfers
+    const completedTransfers = transfers.filter(transfer =>
+      transfer.status === 'completed'
+    );
+
+    // Get rejected/cancelled transfers
+    const rejectedTransfers = transfers.filter(transfer =>
+      ['rejected', 'cancelled'].includes(transfer.status)
+    );
+
+    res.json({
+      property: {
+        _id: property._id,
+        plotNumber: property.plotNumber,
+        location: property.location,
+        propertyType: property.propertyType,
+        area: property.area
+      },
+      currentTransfer,
+      completedTransfers,
+      rejectedTransfers,
+      totalTransfers: transfers.length,
+      transferHistory: transfers
+    });
+  } catch (error) {
+    console.error("Error fetching property transfer history:", error);
+    res.status(500).json({ message: "Server error while fetching transfer history" });
   }
 };

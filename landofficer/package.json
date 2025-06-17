@@ -8,11 +8,7 @@
     "start": "node server/server.js",
     "server": "nodemon server/server.js",
     "client": "npm run dev --prefix client",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "create-admin": "node server/scripts/createAdmin.js",
-    "seed-users": "node server/scripts/seedUsers.js",
-    "test-admin": "node server/scripts/testAdminLogin.js",
-    "reset-admin-password": "node server/scripts/resetAdminPassword.js"
+    "dev": "concurrently \"npm run server\" \"npm run client\""
   },
   "author": "",
   "license": "ISC",

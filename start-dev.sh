@@ -74,33 +74,36 @@ start_app() {
     else
         # Fallback: start in background
         echo "⚠️  Could not open new terminal. Starting $app_name in background..."
-        cd "$app_dir" && npm run dev &
-        cd ..
-    fi
-    
-    # Wait a moment before starting the next application
-    sleep 3
+PIDS=()
+start_app() {
+   ...
+    cd "$app_dir" && npm run dev &
+    PIDS+=($!)
+   ...
+ }
+ 
+ # Start applications
+ start_app "Land Officer Application" "landofficer"
+ start_app "User Application" "user"
+ 
+# Cleanup on exit
+cleanup() {
+  echo "🛑 Stopping applications..."
+  for pid in "${PIDS[@]}"; do
+    kill "$pid" 2>/dev/null || true
+  done
+  exit 0
 }
+trap cleanup INT TERM
 
-# Start applications
-start_app "Land Officer Application" "landofficer"
-start_app "User Application" "user"
-
-echo ""
-echo "✅ Both applications are starting..."
+ # Simple wait loop
+ while true; do
+     sleep 30
+ done
 echo ""
 echo "📋 Application URLs:"
 echo "   🏛️  Land Officer Portal: http://localhost:3000"
 echo "   👥 User Portal:          http://localhost:3002"
-echo ""
-echo "📚 Documentation:"
-echo "   📖 Main Documentation:   docs/README.md"
-echo "   🚀 Deployment Guide:     docs/deployment.md"
-echo "   🔧 Troubleshooting:      docs/troubleshooting/common-issues.md"
-echo ""
-echo "🔑 Default Admin Login:"
-echo "   📧 Email:    admin@system.com"
-echo "   🔒 Password: admin123"
 echo ""
 echo "⚠️  Note: If applications don't start automatically, check the opened terminal windows."
 echo "   You can also start them manually:"
@@ -109,32 +112,12 @@ echo "   - User Portal:  cd user && npm run dev"
 echo ""
 echo "🛑 To stop all services, close the terminal windows or press Ctrl+C in each."
 echo ""
-echo "📞 Need help? Check docs/troubleshooting/common-issues.md or contact support."
+
+# Keep the script running
+echo "🔄 Applications started. Press Ctrl+C to exit this monitor."
 echo ""
 
-# Keep the script running to show status
-echo "🔄 Monitoring applications... (Press Ctrl+C to exit this monitor)"
-echo ""
-
-# Function to check if applications are running
-check_status() {
-    local port=$1
-    local name=$2
-    
-    if curl -s "http://localhost:$port" > /dev/null 2>&1; then
-        echo "✅ $name is running on port $port"
-    else
-        echo "❌ $name is not responding on port $port"
-    fi
-}
-
-# Monitor applications every 30 seconds
+# Simple wait loop
 while true; do
     sleep 30
-    echo "$(date): Checking application status..."
-    check_status 3000 "Land Officer Frontend"
-    check_status 3001 "Land Officer Server"
-    check_status 3002 "User Frontend"
-    check_status 3003 "User Server"
-    echo ""
 done

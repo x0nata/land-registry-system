@@ -50,6 +50,25 @@ export const authenticate = async (req, res, next) => {
   }
 };
 
+// Middleware to check if user is admin
+export const isAdmin = (req, res, next) => {
+  // No user attached → authentication missing / invalid
+  if (!req.user) {
+    return res
+      .status(401)
+      .json({ message: "Authentication required." });
+  }
+
+  // Authenticated but not an admin → forbidden
+  if (req.user.role !== "admin") {
+    return res
+      .status(403)
+      .json({ message: "Access denied. Admin privileges required." });
+  }
+
+  next();
+ }
+
 // Middleware to check if user is a regular user only
 export const isUser = (req, res, next) => {
   if (req.user && req.user.role === "user") {

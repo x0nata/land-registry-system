@@ -66,7 +66,6 @@ const Users = () => {
 
       // Check if user is authenticated and has admin role
       if (!isAuthenticated()) {
-        console.warn('User is not authenticated');
         setError('You must be logged in as an admin to view this page');
         setUsers([]);
         setTotalPages(1);
@@ -76,7 +75,6 @@ const Users = () => {
       }
 
       if (!hasRole('admin')) {
-        console.warn('User does not have admin role');
         setError('You do not have permission to access this page');
         setUsers([]);
         setTotalPages(1);

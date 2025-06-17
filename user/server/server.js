@@ -1,15 +1,12 @@
 import express from "express";
 import cors from "cors";
-import colors from "colors";
-import bodyParser from "body-parser";
 import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
-import connectDB from "./config/db.js";
+import connectDB, { gracefulShutdown } from "./config/db.js";
 import { initGridFS } from "./config/gridfs.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
+import { dbOperationMiddleware } from "./middleware/dbMiddleware.js";
 const PORT = process.env.PORT || 3003;
 
 // Import routes
@@ -23,6 +20,7 @@ import settingsRoutes from "./routes/settingsRoutes.js";
 import reportsRoutes from "./routes/reportsRoutes.js";
 import disputeRoutes from "./routes/disputeRoutes.js";
 import transferRoutes from "./routes/transferRoutes.js";
+import dbHealthRoutes from "./routes/dbHealthRoutes.js";
 
 
 // Load environment variables
@@ -35,9 +33,8 @@ const app = express();
 connectDB().then(() => {
   // Initialize GridFS after successful database connection
   initGridFS();
-}).catch((error) => {
+}).catch(() => {
   console.error('Failed to connect to MongoDB. Server will continue without database connection.');
-  console.error('Error:', error.message);
 });
 
 app.use(express.json());
@@ -48,8 +45,11 @@ app.use(cors({
   exposedHeaders: ['Content-Disposition', 'Content-Length', 'Content-Type']
 }));
 
+// Add database operation middleware
+app.use(dbOperationMiddleware);
+
 // Routes
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.json({ message: "Welcome to Property Registration System API" });
 });
 
@@ -64,6 +64,7 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/disputes", disputeRoutes);
 app.use("/api/transfers", transferRoutes);
+app.use("/api/db-health", dbHealthRoutes);
 
 
 // Middleware
@@ -73,6 +74,48 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start Server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`User Server running on port ${PORT}`);
+});
+
+// Graceful shutdown handling
+const handleShutdown = async (signal) => {
+  console.log(`\n🔄 Received ${signal}. Starting graceful shutdown...`);
+
+  // Close HTTP server
+  server.close(async () => {
+    console.log('🔒 HTTP server closed');
+
+    try {
+      // Close database connections
+      await gracefulShutdown();
+      console.log('✅ Graceful shutdown completed');
+      process.exit(0);
+    } catch (error) {
+      console.error('❌ Error during shutdown:', error);
+      process.exit(1);
+    }
+  });
+
+  // Force shutdown after 30 seconds
+  setTimeout(() => {
+    console.error('💥 Forced shutdown after timeout');
+    process.exit(1);
+  }, 30000);
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('💥 Uncaught Exception:', error);
+  handleShutdown('uncaughtException');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  handleShutdown('unhandledRejection');
 });

@@ -218,16 +218,13 @@ export const downloadDocument = async (documentId) => {
 
     // Additional check: if the blob is very small, it might be an error message
     if (response.data.size < 100) {
-      console.warn('Received very small file, checking if it\'s an error message');
       try {
         const text = await response.data.text();
         if (text.includes('message') || text.includes('error')) {
-          console.error('Small blob contains error message:', text);
           throw new Error('Server error: ' + text);
         }
       } catch (readError) {
         // If we can't read it, assume it's a valid small file
-        console.log('Could not read small blob as text, assuming it\'s a valid file');
       }
     }
 

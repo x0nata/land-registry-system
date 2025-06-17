@@ -130,7 +130,6 @@ class ChapaService {
   validateWebhookSignature(payload, signature) {
     try {
       if (!this.webhookSecret) {
-        console.warn('CHAPA_WEBHOOK_SECRET not configured, skipping signature validation');
         return true; // Allow webhook if secret not configured (for development)
       }
 
@@ -144,7 +143,6 @@ class ChapaService {
         Buffer.from(expectedSignature, 'hex')
       );
     } catch (error) {
-      console.error('Webhook signature validation error:', error);
       return false;
     }
   }

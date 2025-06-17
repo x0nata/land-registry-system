@@ -195,7 +195,6 @@ const UserDashboard = () => {
           }
         }
       } catch (error) {
-        console.error('Error loading dashboard data:', error);
         toast.error('Failed to load dashboard data');
         // Set empty arrays as fallback
         setProperties([]);
