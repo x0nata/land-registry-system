@@ -126,9 +126,9 @@ export const updateDocument = async (documentId, documentData, file) => {
 };
 
 // Get all pending documents for verification (land officer only)
-export const getPendingDocuments = async () => {
+export const getPendingDocuments = async (params = {}) => {
   try {
-    const response = await api.get('/documents/pending');
+    const response = await api.get('/documents/pending', { params });
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to fetch pending documents' };

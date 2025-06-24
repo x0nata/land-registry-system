@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import compression from "compression";
 import dotenv from "dotenv";
 import connectDB, { gracefulShutdown } from "./config/db.js";
 import { initGridFS } from "./config/gridfs.js";
@@ -34,13 +35,22 @@ connectDB().then(() => {
   // Initialize GridFS after successful database connection
   initGridFS();
 }).catch(() => {
-  console.error('Failed to connect to MongoDB. Server will continue without database connection.');
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Failed to connect to MongoDB. Server will continue without database connection.');
+  }
 });
+
+// Enable compression for production
+if (process.env.NODE_ENV === "production") {
+  app.use(compression());
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
-  origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"],
+  origin: process.env.NODE_ENV === "production"
+    ? [process.env.FRONTEND_URL, process.env.BACKEND_URL].filter(Boolean)
+    : ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"],
   credentials: true
 }));
 
@@ -49,7 +59,46 @@ app.use(dbOperationMiddleware);
 
 // Routes
 app.get("/", (_req, res) => {
-  res.json({ message: "Land Officer API - Please use appropriate endpoints" });
+  res.json({
+    message: "Land Officer API - Please use appropriate endpoints",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    version: "1.0.0"
+  });
+});
+
+// Debug endpoint for Vercel deployment
+app.get("/debug", (_req, res) => {
+  try {
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      platform: process.platform,
+      nodeVersion: process.version,
+      uptime: process.uptime(),
+      memoryUsage: process.memoryUsage(),
+      environmentVariables: {
+        MONGO_URI: process.env.MONGO_URI ? "✅ Set" : "❌ Not Set",
+        JWT_SECRET: process.env.JWT_SECRET ? "✅ Set" : "❌ Not Set",
+        CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME ? "✅ Set" : "❌ Not Set",
+        NODE_ENV: process.env.NODE_ENV || "Not Set",
+        PORT: process.env.PORT || "Not Set"
+      },
+      database: {
+        readyState: require('mongoose').connection.readyState,
+        host: require('mongoose').connection.host || "Not Connected",
+        name: require('mongoose').connection.name || "Not Connected"
+      }
+    };
+
+    res.json(debugInfo);
+  } catch (error) {
+    res.status(500).json({
+      error: "Debug endpoint failed",
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // API Routes
@@ -70,7 +119,7 @@ app.use("/api/db-health", dbHealthRoutes);
 
 // Middleware
 app.use(helmet());
-app.use(morgan("dev"));
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(notFound);
 app.use(errorHandler);
 
@@ -87,16 +136,22 @@ let shuttingDown = false;
 const handleShutdown = async (signal) => {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`\n🔄 Received ${signal}. Starting graceful shutdown...`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`\n🔄 Received ${signal}. Starting graceful shutdown...`);
+  }
 
   // Close HTTP server
   server.close(async () => {
-    console.log('🔒 HTTP server closed');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔒 HTTP server closed');
+    }
 
     try {
       // Close database connections
       await gracefulShutdown();
-      console.log('✅ Graceful shutdown completed');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ Graceful shutdown completed');
+      }
       process.exit(0);
     } catch (error) {
       console.error('❌ Error during shutdown:', error);

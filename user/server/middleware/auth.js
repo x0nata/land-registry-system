@@ -23,7 +23,7 @@ export const authenticate = async (req, res, next) => {
       // Create a minimal user object from token for basic functionality
       req.user = {
         _id: decoded.id,
-        role: decoded.role || 'user',
+        role: 'user',
         email: decoded.email || 'unknown@example.com',
         fullName: decoded.fullName || 'Unknown User'
       };

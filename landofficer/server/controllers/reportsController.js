@@ -41,23 +41,28 @@ export const getPropertyStats = async (req, res) => {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Get property statistics with timeout
-    const totalProperties = await Property.countDocuments();
-    const pendingProperties = await Property.countDocuments({ status: 'pending' });
-    const approvedProperties = await Property.countDocuments({ status: 'approved' });
-    const rejectedProperties = await Property.countDocuments({ status: 'rejected' });
-    const newProperties = await Property.countDocuments({
-      createdAt: { $gte: startDate }
-    });
-
-    // Get properties by type with timeout
-    const propertiesByType = await Property.aggregate([
-      {
-        $group: {
-          _id: "$propertyType",
-          count: { $sum: 1 }
+    // Execute all queries in parallel for better performance
+    const [
+      totalProperties,
+      pendingProperties,
+      approvedProperties,
+      rejectedProperties,
+      newProperties,
+      propertiesByType
+    ] = await Promise.all([
+      Property.countDocuments(),
+      Property.countDocuments({ status: 'pending' }),
+      Property.countDocuments({ status: 'approved' }),
+      Property.countDocuments({ status: 'rejected' }),
+      Property.countDocuments({ createdAt: { $gte: startDate } }),
+      Property.aggregate([
+        {
+          $group: {
+            _id: "$propertyType",
+            count: { $sum: 1 }
+          }
         }
-      }
+      ])
     ]);
 
     res.json({

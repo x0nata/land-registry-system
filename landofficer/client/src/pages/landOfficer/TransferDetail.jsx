@@ -122,12 +122,11 @@ const TransferDetail = () => {
     }
   };
 
-  const formatTransferType = (type) => {
-    if (!type) return 'N/A';
-    return type.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-  };
+  const formatTransferType = (type = '') =>
+    type
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString('en-US', {

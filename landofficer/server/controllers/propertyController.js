@@ -292,11 +292,42 @@ export const getAllProperties = async (req, res) => {
 // @access  Private (Admin, Land Officer)
 export const getPendingProperties = async (req, res) => {
   try {
+    const {
+      page = 1,
+      limit = 10,
+      dashboard = false
+    } = req.query;
+
+    // For dashboard, limit to 5 most recent items for performance
+    const queryLimit = dashboard === 'true' ? 5 : parseInt(limit);
+    const skip = dashboard === 'true' ? 0 : (parseInt(page) - 1) * parseInt(limit);
+
     const pendingProperties = await Property.find({ status: "pending" })
       .populate("owner", "fullName email nationalId")
-      .sort({ registrationDate: 1 });
+      .sort({ registrationDate: 1 })
+      .skip(skip)
+      .limit(queryLimit)
+      .lean(); // Use lean() for better performance when we don't need full Mongoose documents
 
-    res.json(pendingProperties);
+    // Get total count only if not dashboard request
+    let total = 0;
+    if (dashboard !== 'true') {
+      total = await Property.countDocuments({ status: "pending" });
+    }
+
+    const response = dashboard === 'true'
+      ? pendingProperties
+      : {
+          properties: pendingProperties,
+          pagination: {
+            total,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            pages: Math.ceil(total / parseInt(limit))
+          }
+        };
+
+    res.json(response);
   } catch (error) {
     console.error("Error fetching pending properties:", error);
     res

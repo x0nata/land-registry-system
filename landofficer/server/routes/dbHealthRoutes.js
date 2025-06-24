@@ -14,6 +14,68 @@ import { authenticate, isAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
+// Add at the earliest possible point
+router.use((req, res, next) => {
+   req.startTime = Date.now();
+   next();
+ });
+
+// @route   GET /api/db-health/public
+// @desc    Public database health check for monitoring
+// @access  Public
+router.get("/public", async (req, res) => {
+  try {
+    const readyState = mongoose.connection.readyState;
+    const stateNames = {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    };
+
+    const isConnected = readyState === 1;
+
+    if (isConnected) {
+      // Try a simple ping
+      try {
+        await mongoose.connection.db.admin().ping();
+        res.json({
+          status: "healthy",
+          database: "connected",
+          state: stateNames[readyState],
+          timestamp: new Date().toISOString(),
+          message: "Database connection is working"
+        });
+      } catch (pingError) {
+        res.status(503).json({
+          status: "unhealthy",
+          database: "connected_but_unresponsive",
+          state: stateNames[readyState],
+          timestamp: new Date().toISOString(),
+          message: "Database connected but not responding to ping",
+          error: pingError.message
+        });
+      }
+    } else {
+      res.status(503).json({
+        status: "unhealthy",
+        database: "disconnected",
+        state: stateNames[readyState],
+        timestamp: new Date().toISOString(),
+        message: "Database is not connected"
+      });
+    }
+  } catch (error) {
+    res.status(503).json({
+      status: "unhealthy",
+      database: "error",
+      timestamp: new Date().toISOString(),
+      message: "Error checking database status",
+      error: error.message
+    });
+  }
+});
+
 // @route   GET /api/db-health/status
 // @desc    Get database connection status and metrics
 // @access  Private (Admin)
@@ -87,8 +149,10 @@ router.get("/ping", authenticate, dbHealthCheckMiddleware, async (req, res) => {
 // @access  Private (Admin)
 router.post("/reconnect", authenticate, isAdmin, async (req, res) => {
   try {
-    console.log("Admin initiated database reconnection");
-    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("Admin initiated database reconnection");
+    }
+
     const connection = await forceReconnect();
     
     if (connection) {
@@ -152,7 +216,9 @@ router.get("/metrics", authenticate, isAdmin, async (req, res) => {
       try {
         serverStatus = await mongoose.connection.db.admin().serverStatus();
       } catch (error) {
-        console.warn("Could not retrieve server status:", error.message);
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn("Could not retrieve server status:", error.message);
+        }
       }
     }
 
@@ -186,7 +252,9 @@ router.get("/metrics", authenticate, isAdmin, async (req, res) => {
       metrics
     });
   } catch (error) {
-    console.error("Error getting database metrics:", error);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("Error getting database metrics:", error);
+    }
     res.status(500).json({
       message: "Error retrieving database metrics",
       error: error.message,
@@ -244,11 +312,5 @@ router.get("/collections", authenticate, isAdmin, async (req, res) => {
     });
   }
 });
-
-// Add at the earliest possible point
-router.use((req, res, next) => {
-   req.startTime = Date.now();
-   next();
- });
 
 export default router;

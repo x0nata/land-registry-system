@@ -18,11 +18,10 @@ const ApprovalModal = ({ transfer, approvalType, onClose, onSubmit }) => {
     }
   };
 
-  const formatTransferType = (type) => {
-    return type.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
+  const formatTransferType = (type = '') =>
+    type.split('_').map(word =>
+       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
-  };
 
   const formatCurrency = (amount, currency = 'ETB') => {
     return new Intl.NumberFormat('en-US', {

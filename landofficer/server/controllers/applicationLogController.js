@@ -126,7 +126,9 @@ export const getAllLogs = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching logs:", error);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("Error fetching logs:", error);
+    }
     res.status(500).json({ message: "Server error while fetching logs" });
   }
 };
@@ -330,7 +332,9 @@ export const getApplicationStats = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching application statistics:", error);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("Error fetching application statistics:", error);
+    }
     res
       .status(500)
       .json({ message: "Server error while fetching application statistics" });

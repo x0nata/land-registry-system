@@ -118,13 +118,26 @@ const stopHealthChecks = () => {
   }
 };
 
+// Store references to event handlers so they can be removed individually
+const connectionEventHandlers = {
+  connected: null,
+  error: null,
+  disconnected: null,
+  reconnected: null,
+  close: null,
+  fullsetup: null,
+  all: null
+};
+
 // Setup comprehensive connection event handlers
 const setupConnectionEventHandlers = () => {
-  // Remove existing listeners to prevent duplicates
-  mongoose.connection.removeAllListeners();
+  // Remove only this module's listeners to prevent duplicates
+  Object.entries(connectionEventHandlers).forEach(([evt, handler]) => {
+    if (handler) mongoose.connection.off(evt, handler);
+  });
 
   // Connection opened successfully
-  mongoose.connection.on('connected', () => {
+  connectionEventHandlers.connected = () => {
     const connectionTime = Date.now() - connectionState.lastConnectionAttempt;
     connectionMetrics.totalConnections++;
     connectionMetrics.lastConnectionTime = connectionTime;
@@ -156,10 +169,11 @@ const setupConnectionEventHandlers = () => {
 
     // Start health monitoring with Atlas-appropriate frequency
     startHealthChecks();
-  });
+  };
+  mongoose.connection.on('connected', connectionEventHandlers.connected);
 
   // Connection error
-  mongoose.connection.on('error', (error) => {
+  connectionEventHandlers.error = (error) => {
     connectionMetrics.totalErrors++;
     connectionState.lastError = error;
 
@@ -174,10 +188,11 @@ const setupConnectionEventHandlers = () => {
     } else if (error.name === 'MongoTimeoutError') {
       console.error('⏰ Operation timeout - consider increasing timeout values');
     }
-  });
+  };
+  mongoose.connection.on('error', connectionEventHandlers.error);
 
   // Connection disconnected
-  mongoose.connection.on('disconnected', () => {
+  connectionEventHandlers.disconnected = () => {
     connectionMetrics.totalDisconnections++;
     connectionState.lastDisconnectTime = Date.now();
     connectionState.consecutiveDisconnects++;
@@ -223,30 +238,35 @@ const setupConnectionEventHandlers = () => {
     // Only attempt reconnection if conditions are met
     console.log('🔄 Attempting automatic reconnection...');
     scheduleReconnection();
-  });
+  };
+  mongoose.connection.on('disconnected', connectionEventHandlers.disconnected);
 
   // Connection reconnected
-  mongoose.connection.on('reconnected', () => {
+  connectionEventHandlers.reconnected = () => {
     console.log('🔄 MongoDB Reconnected Successfully!');
     connectionMetrics.totalConnections++;
     startHealthChecks();
-  });
+  };
+  mongoose.connection.on('reconnected', connectionEventHandlers.reconnected);
 
   // Connection close
-  mongoose.connection.on('close', () => {
+  connectionEventHandlers.close = () => {
     console.log('🔒 MongoDB Connection Closed');
     stopHealthChecks();
-  });
+  };
+  mongoose.connection.on('close', connectionEventHandlers.close);
 
   // Full setup
-  mongoose.connection.on('fullsetup', () => {
+  connectionEventHandlers.fullsetup = () => {
     console.log('🎯 MongoDB Full Setup Complete (All replica set members connected)');
-  });
+  };
+  mongoose.connection.on('fullsetup', connectionEventHandlers.fullsetup);
 
   // All connections established
-  mongoose.connection.on('all', () => {
+  connectionEventHandlers.all = () => {
     console.log('🌐 All MongoDB Connections Established');
-  });
+  };
+  mongoose.connection.on('all', connectionEventHandlers.all);
 };
 
 // Schedule automatic reconnection with exponential backoff
@@ -305,7 +325,7 @@ const connectWithRetry = async () => {
     const connectionTime = Date.now() - startTime;
 
     // Update metrics
-    connectionMetrics.totalConnections++;
+    // connectionMetrics.totalConnections++; // Removed to avoid double counting
     connectionMetrics.lastConnectionTime = connectionTime;
     connectionMetrics.uptime = Date.now();
     connectionState.lastSuccessfulConnection = Date.now();

@@ -75,12 +75,16 @@ const recordFailure = (error) => {
   circuitBreaker.successCount = 0;
 
   if (shouldOpenCircuit() && !circuitBreaker.isOpen) {
-    console.error(`🚨 Circuit breaker: Opening circuit after ${circuitBreaker.failureCount} failures`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`🚨 Circuit breaker: Opening circuit after ${circuitBreaker.failureCount} failures`);
+    }
     circuitBreaker.isOpen = true;
     circuitBreaker.halfOpenAttempts = 0;
   }
 
-  console.error(`💥 Database operation failed (${circuitBreaker.failureCount}/${CIRCUIT_BREAKER_CONFIG.failureThreshold}):`, error.message);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(`💥 Database operation failed (${circuitBreaker.failureCount}/${CIRCUIT_BREAKER_CONFIG.failureThreshold}):`, error.message);
+  }
 };
 
 // Check if operation should be allowed
@@ -89,7 +93,9 @@ const isOperationAllowed = () => {
   
   if (shouldAttemptRecovery()) {
     if (circuitBreaker.halfOpenAttempts < CIRCUIT_BREAKER_CONFIG.halfOpenMaxAttempts) {
-      console.log('🔄 Circuit breaker: Attempting recovery (half-open state)');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔄 Circuit breaker: Attempting recovery (half-open state)');
+      }
       return true;
     }
   }
@@ -133,7 +139,7 @@ const executeWithRetry = async (operation, context = 'database operation') => {
       const result = await operation();
       recordSuccess();
       
-      if (attempt > 0) {
+      if (attempt > 0 && process.env.NODE_ENV !== 'production') {
         console.log(`✅ ${context} succeeded after ${attempt} retries`);
       }
       
@@ -142,11 +148,13 @@ const executeWithRetry = async (operation, context = 'database operation') => {
     } catch (error) {
       lastError = error;
       
-      // Don't retry non-retryable errors
       if (!isRetryableError(error)) {
         recordFailure(error);
         throw error;
       }
+
+      // count each retryable failure
+      recordFailure(error);
       
       // Don't retry on last attempt
       if (attempt === RETRY_CONFIG.maxRetries) {
@@ -155,7 +163,9 @@ const executeWithRetry = async (operation, context = 'database operation') => {
       }
       
       const delay = calculateRetryDelay(attempt);
-      console.warn(`⚠️ ${context} failed (attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries + 1}), retrying in ${delay}ms:`, error.message);
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`⚠️ ${context} failed (attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries + 1}), retrying in ${delay}ms:`, error.message);
+      }
       
       await new Promise(resolve => setTimeout(resolve, delay));
     }

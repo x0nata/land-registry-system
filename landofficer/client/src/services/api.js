@@ -1,8 +1,19 @@
 import axios from 'axios';
 
+// Get the API base URL from environment variables
+const getApiBaseUrl = () => {
+  // In production, use the environment variable
+  if (import.meta.env.PROD) {
+    return import.meta.env.VITE_API_URL || 'https://your-backend-domain.vercel.app/api';
+  }
+
+  // In development, use localhost
+  return import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+};
+
 // Create an axios instance with default config
 const api = axios.create({
-  baseURL: 'http://localhost:3001/api',
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json'
   },

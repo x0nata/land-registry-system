@@ -428,12 +428,43 @@ export const getAllDocuments = async (req, res) => {
 // @access  Private (Admin, Land Officer)
 export const getPendingDocuments = async (req, res) => {
   try {
-    const pendingDocuments = await Document.find({ status: "pending" })
-      .populate("property")
-      .populate("owner", "fullName email nationalId")
-      .sort({ uploadDate: 1 });
+    const {
+      page = 1,
+      limit = 10,
+      dashboard = false
+    } = req.query;
 
-    res.json(pendingDocuments);
+    // For dashboard, limit to 5 most recent items for performance
+    const queryLimit = dashboard === 'true' ? 5 : parseInt(limit);
+    const skip = dashboard === 'true' ? 0 : (parseInt(page) - 1) * parseInt(limit);
+
+    const pendingDocuments = await Document.find({ status: "pending" })
+      .populate("property", "plotNumber _id") // Only populate needed fields
+      .populate("owner", "fullName email nationalId")
+      .sort({ uploadDate: 1 })
+      .skip(skip)
+      .limit(queryLimit)
+      .lean(); // Use lean() for better performance
+
+    // Get total count only if not dashboard request
+    let total = 0;
+    if (dashboard !== 'true') {
+      total = await Document.countDocuments({ status: "pending" });
+    }
+
+    const response = dashboard === 'true'
+      ? pendingDocuments
+      : {
+          documents: pendingDocuments,
+          pagination: {
+            total,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            pages: Math.ceil(total / parseInt(limit))
+          }
+        };
+
+    res.json(response);
   } catch (error) {
     console.error("Error fetching pending documents:", error);
     res

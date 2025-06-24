@@ -79,7 +79,10 @@ const server = app.listen(PORT, () => {
 });
 
 // Graceful shutdown handling
-const handleShutdown = async (signal) => {
+let shuttingDown = false;
+ const handleShutdown = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`\n🔄 Received ${signal}. Starting graceful shutdown...`);
 
   // Close HTTP server

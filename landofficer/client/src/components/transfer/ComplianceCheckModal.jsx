@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { XMarkIcon, ShieldCheckIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
-const ComplianceCheckModal = ({ transfer, onClose, onSubmit }) => {
+const ComplianceCheckModal = ({ onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
     ethiopianLawCompliance: {
       notes: ''
@@ -23,6 +23,8 @@ const ComplianceCheckModal = ({ transfer, onClose, onSubmit }) => {
     
     try {
       await onSubmit(formData);
+   onClose();           // close on success
+   onClose();           // close on success
     } catch (error) {
       console.error('Error submitting compliance checks:', error);
     } finally {

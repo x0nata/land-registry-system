@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
@@ -11,17 +11,45 @@ import {
   CurrencyDollarIcon,
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
-import RecentActivity from '../../components/dashboard/RecentActivity';
 import DashboardSearch from '../../components/dashboard/DashboardSearch';
 import { getPendingProperties } from '../../services/propertyService';
 import { getPendingDocuments, verifyDocument, rejectDocument } from '../../services/documentService';
 import { getPropertyStats, getDocumentStats } from '../../services/reportsService';
+import {
+  trackDashboardLoad,
+  trackStatsLoad,
+  trackPendingAppsLoad,
+  trackPendingDocsLoad,
+  finishDashboardLoad,
+  finishStatsLoad,
+  finishPendingAppsLoad,
+  finishPendingDocsLoad
+} from '../../utils/performanceMonitor';
+import {
+  getCachedPropertyStats,
+  cachePropertyStats,
+  getCachedDocumentStats,
+  cacheDocumentStats,
+  getCachedPendingProperties,
+  cachePendingProperties,
+  getCachedPendingDocuments,
+  cachePendingDocuments,
+  invalidatePropertyCaches,
+  invalidateDocumentCaches
+} from '../../utils/dataCache';
+
+// Lazy load RecentActivity component for better performance
+const RecentActivity = lazy(() => import('../../components/dashboard/RecentActivity'));
 
 const LandOfficerDashboard = () => {
   // User data and loading states
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [dataLoading, setDataLoading] = useState(true);
+
+  // Individual loading states for progressive loading
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [pendingAppsLoading, setPendingAppsLoading] = useState(true);
+  const [pendingDocsLoading, setPendingDocsLoading] = useState(true);
 
   // Real data from API
   const [pendingApplications, setPendingApplications] = useState([]);
@@ -105,38 +133,131 @@ const LandOfficerDashboard = () => {
     }
   }, [user]);
 
+  // Load dashboard data with parallel async operations for better performance
   const loadDashboardData = async () => {
     try {
-      setDataLoading(true);
+      trackDashboardLoad();
 
-      // Fetch pending applications
-      const pendingAppsResponse = await getPendingProperties();
-      setPendingApplications(pendingAppsResponse || []);
+      // Load critical stats first
+      loadStats();
 
-      // Fetch pending documents
-      const pendingDocsResponse = await getPendingDocuments();
-      setPendingDocuments(pendingDocsResponse || []);
+      // Load other data in parallel without blocking the UI
+      loadPendingApplications();
+      loadPendingDocuments();
 
-      // Fetch property statistics
-      const propertyStats = await getPropertyStats();
-      const documentStats = await getDocumentStats();
-
-      setStats({
-        totalProperties: propertyStats.totalProperties || 0,
-        pendingProperties: propertyStats.pendingProperties || 0,
-        approvedProperties: propertyStats.approvedProperties || 0,
-        rejectedProperties: propertyStats.rejectedProperties || 0,
-        totalDocuments: documentStats.totalDocuments || 0,
-        pendingDocuments: documentStats.pendingVerification || 0,
-        verifiedDocuments: documentStats.verifiedDocuments || 0,
-        rejectedDocuments: documentStats.rejectedDocuments || 0
-      });
-
+      // Track completion after all initial loads
+      setTimeout(() => {
+        finishDashboardLoad();
+      }, 100);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       toast.error('Failed to load dashboard data');
+    }
+  };
+
+  // Load stats independently with caching
+  const loadStats = async () => {
+    try {
+      trackStatsLoad();
+      setStatsLoading(true);
+
+      // Check cache first
+      const cachedPropertyStats = getCachedPropertyStats();
+      const cachedDocumentStats = getCachedDocumentStats();
+
+      if (cachedPropertyStats && cachedDocumentStats) {
+        // Use cached data
+        setStats({
+          totalProperties: cachedPropertyStats.totalProperties || 0,
+          pendingProperties: cachedPropertyStats.pendingProperties || 0,
+          approvedProperties: cachedPropertyStats.approvedProperties || 0,
+          rejectedProperties: cachedPropertyStats.rejectedProperties || 0,
+          totalDocuments: cachedDocumentStats.totalDocuments || 0,
+          pendingDocuments: cachedDocumentStats.pendingVerification || 0,
+          verifiedDocuments: cachedDocumentStats.verifiedDocuments || 0,
+          rejectedDocuments: cachedDocumentStats.rejectedDocuments || 0
+        });
+        console.log('📦 Using cached stats data');
+      } else {
+        // Fetch fresh data
+        const [propertyStats, documentStats] = await Promise.all([
+          getPropertyStats(),
+          getDocumentStats()
+        ]);
+
+        // Cache the results
+        cachePropertyStats(propertyStats);
+        cacheDocumentStats(documentStats);
+
+        setStats({
+          totalProperties: propertyStats.totalProperties || 0,
+          pendingProperties: propertyStats.pendingProperties || 0,
+          approvedProperties: propertyStats.approvedProperties || 0,
+          rejectedProperties: propertyStats.rejectedProperties || 0,
+          totalDocuments: documentStats.totalDocuments || 0,
+          pendingDocuments: documentStats.pendingVerification || 0,
+          verifiedDocuments: documentStats.verifiedDocuments || 0,
+          rejectedDocuments: documentStats.rejectedDocuments || 0
+        });
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+      toast.error('Failed to load statistics');
     } finally {
-      setDataLoading(false);
+      setStatsLoading(false);
+      finishStatsLoad();
+    }
+  };
+
+  // Load pending applications independently with caching
+  const loadPendingApplications = async () => {
+    try {
+      trackPendingAppsLoad();
+      setPendingAppsLoading(true);
+
+      // Check cache first
+      const cachedData = getCachedPendingProperties();
+      if (cachedData) {
+        setPendingApplications(cachedData);
+        console.log('📦 Using cached pending applications data');
+      } else {
+        // Use dashboard parameter to limit results for better performance
+        const pendingAppsResponse = await getPendingProperties({ dashboard: true });
+        cachePendingProperties(pendingAppsResponse || []);
+        setPendingApplications(pendingAppsResponse || []);
+      }
+    } catch (error) {
+      console.error('Error loading pending applications:', error);
+      toast.error('Failed to load pending applications');
+    } finally {
+      setPendingAppsLoading(false);
+      finishPendingAppsLoad();
+    }
+  };
+
+  // Load pending documents independently with caching
+  const loadPendingDocuments = async () => {
+    try {
+      trackPendingDocsLoad();
+      setPendingDocsLoading(true);
+
+      // Check cache first
+      const cachedData = getCachedPendingDocuments();
+      if (cachedData) {
+        setPendingDocuments(cachedData);
+        console.log('📦 Using cached pending documents data');
+      } else {
+        // Use dashboard parameter to limit results for better performance
+        const pendingDocsResponse = await getPendingDocuments({ dashboard: true });
+        cachePendingDocuments(pendingDocsResponse || []);
+        setPendingDocuments(pendingDocsResponse || []);
+      }
+    } catch (error) {
+      console.error('Error loading pending documents:', error);
+      toast.error('Failed to load pending documents');
+    } finally {
+      setPendingDocsLoading(false);
+      finishPendingDocsLoad();
     }
   };
 
@@ -156,7 +277,10 @@ const LandOfficerDashboard = () => {
       setShowDocumentModal(false);
       setSelectedDocument(null);
       setNotes('');
-      loadDashboardData(); // Refresh data
+      // Invalidate caches and refresh data
+      invalidateDocumentCaches();
+      loadPendingDocuments();
+      loadStats();
     } catch (error) {
       console.error('Error processing document:', error);
       toast.error(error.message || 'Failed to process document');
@@ -231,7 +355,11 @@ const LandOfficerDashboard = () => {
             <h3 className="text-lg font-semibold">Pending Applications</h3>
           </div>
           <p className="text-3xl font-bold text-primary">
-            {dataLoading ? '...' : stats.pendingProperties}
+            {statsLoading ? (
+              <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+            ) : (
+              stats.pendingProperties
+            )}
           </p>
           <p className="text-gray-600 mt-1">Awaiting review</p>
         </div>
@@ -242,7 +370,11 @@ const LandOfficerDashboard = () => {
             <h3 className="text-lg font-semibold">Under Review</h3>
           </div>
           <p className="text-3xl font-bold text-blue-600">
-            {dataLoading ? '...' : pendingApplications.filter(app => app.status === 'under_review').length}
+            {pendingAppsLoading ? (
+              <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+            ) : (
+              pendingApplications.filter(app => app.status === 'under_review').length
+            )}
           </p>
           <p className="text-gray-600 mt-1">Applications in progress</p>
         </div>
@@ -253,7 +385,11 @@ const LandOfficerDashboard = () => {
             <h3 className="text-lg font-semibold">Documents</h3>
           </div>
           <p className="text-3xl font-bold text-yellow-600">
-            {dataLoading ? '...' : stats.pendingDocuments}
+            {statsLoading ? (
+              <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+            ) : (
+              stats.pendingDocuments
+            )}
           </p>
           <p className="text-gray-600 mt-1">Pending verification</p>
         </div>
@@ -264,7 +400,11 @@ const LandOfficerDashboard = () => {
             <h3 className="text-lg font-semibold">Approved</h3>
           </div>
           <p className="text-3xl font-bold text-green-600">
-            {dataLoading ? '...' : stats.approvedProperties}
+            {statsLoading ? (
+              <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+            ) : (
+              stats.approvedProperties
+            )}
           </p>
           <p className="text-gray-600 mt-1">Properties verified</p>
         </div>
@@ -273,9 +413,18 @@ const LandOfficerDashboard = () => {
       {/* Pending Applications */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <h3 className="text-lg font-semibold mb-4">Pending Applications</h3>
-        {dataLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        {pendingAppsLoading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, index) => (
+              <div key={index} className="animate-pulse">
+                <div className="flex space-x-4">
+                  <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : pendingApplications.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No pending applications found</p>
@@ -361,12 +510,29 @@ const LandOfficerDashboard = () => {
       {/* Recent Activity and Documents Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         <div className="lg:col-span-2">
-          <RecentActivity
-            limit={6}
-            showFilters={true}
-            showHeader={true}
-            className=""
-          />
+          <Suspense fallback={
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="animate-pulse space-y-4">
+                <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+                {[...Array(3)].map((_, index) => (
+                  <div key={index} className="flex space-x-4">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          }>
+            <RecentActivity
+              limit={6}
+              showFilters={true}
+              showHeader={true}
+              className=""
+            />
+          </Suspense>
         </div>
 
         {/* Quick Actions */}
@@ -403,9 +569,20 @@ const LandOfficerDashboard = () => {
       {/* Documents Pending Verification */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <h3 className="text-lg font-semibold mb-4">Documents Pending Verification</h3>
-        {dataLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        {pendingDocsLoading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, index) => (
+              <div key={index} className="animate-pulse">
+                <div className="flex space-x-4">
+                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : pendingDocuments.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No pending documents found</p>

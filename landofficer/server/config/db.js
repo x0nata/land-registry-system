@@ -113,7 +113,9 @@ const startHealthChecks = () => {
   connectionState.healthCheckInterval = setInterval(async () => {
     const isHealthy = await performHealthCheck();
     if (!isHealthy && mongoose.connection.readyState === 1) {
-      console.warn('⚠️ Atlas health check failed but connection appears active. Monitoring...');
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('⚠️ Atlas health check failed but connection appears active. Monitoring...');
+      }
       connectionState.connectionStabilityScore = Math.max(0, connectionState.connectionStabilityScore - 2);
     } else if (isHealthy) {
       connectionState.connectionStabilityScore = Math.min(100, connectionState.connectionStabilityScore + 1);
@@ -148,10 +150,12 @@ const setupConnectionEventHandlers = () => {
     connectionMetrics.connectionCount++;
 
     console.log(`✅ MongoDB Connected Successfully!`);
-    console.log(`📊 Host: ${mongoose.connection.host}`);
-    console.log(`📊 Database: ${mongoose.connection.name}`);
-    console.log(`⏱️ Connection Time: ${connectionTime}ms`);
-    console.log(`📈 Total Connections: ${connectionMetrics.totalConnections}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📊 Host: ${mongoose.connection.host}`);
+      console.log(`📊 Database: ${mongoose.connection.name}`);
+      console.log(`⏱️ Connection Time: ${connectionTime}ms`);
+      console.log(`📈 Total Connections: ${connectionMetrics.totalConnections}`);
+    }
 
     connectionState.isConnecting = false;
     connectionState.connectionAttempts = 0;
@@ -173,15 +177,18 @@ const setupConnectionEventHandlers = () => {
     connectionState.lastError = error;
 
     console.error(`❌ MongoDB Connection Error:`, error.message);
-    console.error(`📊 Total Errors: ${connectionMetrics.totalErrors}`);
 
-    // Log specific error types for debugging
-    if (error.name === 'MongoNetworkError') {
-      console.error('🌐 Network connectivity issue detected');
-    } else if (error.name === 'MongoServerSelectionError') {
-      console.error('🎯 Server selection failed - check cluster status');
-    } else if (error.name === 'MongoTimeoutError') {
-      console.error('⏰ Operation timeout - consider increasing timeout values');
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`📊 Total Errors: ${connectionMetrics.totalErrors}`);
+
+      // Log specific error types for debugging
+      if (error.name === 'MongoNetworkError') {
+        console.error('🌐 Network connectivity issue detected');
+      } else if (error.name === 'MongoServerSelectionError') {
+        console.error('🎯 Server selection failed - check cluster status');
+      } else if (error.name === 'MongoTimeoutError') {
+        console.error('⏰ Operation timeout - consider increasing timeout values');
+      }
     }
   });
 
@@ -191,9 +198,11 @@ const setupConnectionEventHandlers = () => {
     connectionState.lastDisconnectTime = Date.now();
     connectionState.consecutiveDisconnects++;
 
-    console.warn(`⚠️ MongoDB Disconnected`);
-    console.warn(`📊 Total Disconnections: ${connectionMetrics.totalDisconnections}`);
-    console.warn(`📊 Consecutive Disconnects: ${connectionState.consecutiveDisconnects}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`⚠️ MongoDB Disconnected`);
+      console.warn(`📊 Total Disconnections: ${connectionMetrics.totalDisconnections}`);
+      console.warn(`📊 Consecutive Disconnects: ${connectionState.consecutiveDisconnects}`);
+    }
 
     stopHealthChecks();
 
@@ -204,13 +213,17 @@ const setupConnectionEventHandlers = () => {
     // 2. Too many consecutive disconnects (possible loop)
     // 3. In reconnection cooldown
     if (mongoose.connection.readyState === 3) { // Intentionally disconnecting
-      console.log('🔒 Intentional disconnect, not reconnecting');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔒 Intentional disconnect, not reconnecting');
+      }
       return;
     }
 
     // Atlas-specific reconnection limits (more conservative for shared clusters)
     if (connectionState.consecutiveDisconnects > 3) {
-      console.warn('⚠️ Too many consecutive disconnects for Atlas shared cluster, entering extended cooldown');
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('⚠️ Too many consecutive disconnects for Atlas shared cluster, entering extended cooldown');
+      }
       connectionState.reconnectionCooldown = true;
       connectionState.connectionStabilityScore = Math.max(0, connectionState.connectionStabilityScore - 20);
 
@@ -289,21 +302,28 @@ const connectWithRetry = async () => {
   try {
     const connectionUri = process.env.MONGO_URI;
     if (!connectionUri) {
+      console.error('❌ MONGO_URI environment variable is not defined');
+      console.error('🔧 Please set MONGO_URI in your Vercel environment variables');
+      console.error('📖 See VERCEL_DATABASE_FIX.md for detailed instructions');
       throw new Error('MONGO_URI environment variable is not defined');
     }
 
-    console.log(`🔄 Connection attempt ${connectionState.connectionAttempts} (Land Officer Server)`);
-    console.log("📍 Connection URI:", connectionUri?.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@'));
-
+    // Get connection options
     const options = getConnectionOptions();
-    console.log("⚙️ Connection options:", JSON.stringify({
-      serverSelectionTimeoutMS: options.serverSelectionTimeoutMS,
-      connectTimeoutMS: options.connectTimeoutMS,
-      socketTimeoutMS: options.socketTimeoutMS,
-      maxPoolSize: options.maxPoolSize,
-      minPoolSize: options.minPoolSize,
-      heartbeatFrequencyMS: options.heartbeatFrequencyMS
-    }, null, 2));
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🔄 Connection attempt ${connectionState.connectionAttempts} (Land Officer Server)`);
+      console.log("📍 Connection URI:", connectionUri?.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@'));
+
+      console.log("⚙️ Connection options:", JSON.stringify({
+        serverSelectionTimeoutMS: options.serverSelectionTimeoutMS,
+        connectTimeoutMS: options.connectTimeoutMS,
+        socketTimeoutMS: options.socketTimeoutMS,
+        maxPoolSize: options.maxPoolSize,
+        minPoolSize: options.minPoolSize,
+        heartbeatFrequencyMS: options.heartbeatFrequencyMS
+      }, null, 2));
+    }
 
     // Set mongoose global options
     mongoose.set('bufferCommands', false);
@@ -321,12 +341,14 @@ const connectWithRetry = async () => {
     connectionState.isConnecting = false;
 
     console.log(`✅ MongoDB Connected Successfully!`);
-    console.log(`📊 Host: ${conn.connection.host}`);
-    console.log(`📊 Database: ${conn.connection.name}`);
-    console.log(`⏱️ Connection Time: ${connectionTime}ms`);
-    console.log(`📈 Total Connections: ${connectionMetrics.totalConnections}`);
-    console.log(`🎯 Atlas Connection Stability Score: ${connectionState.connectionStabilityScore}/100`);
-    console.log(`🎉 MongoDB Connection Successful!`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📊 Host: ${conn.connection.host}`);
+      console.log(`📊 Database: ${conn.connection.name}`);
+      console.log(`⏱️ Connection Time: ${connectionTime}ms`);
+      console.log(`📈 Total Connections: ${connectionMetrics.totalConnections}`);
+      console.log(`🎯 Atlas Connection Stability Score: ${connectionState.connectionStabilityScore}/100`);
+      console.log(`🎉 MongoDB Connection Successful!`);
+    }
 
     return conn.connection;
 
@@ -336,19 +358,25 @@ const connectWithRetry = async () => {
     connectionMetrics.totalErrors++;
 
     console.error(`❌ MongoDB Connection Error: ${error.message}`);
-    console.error(`📊 Total Errors: ${connectionMetrics.totalErrors}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`📊 Total Errors: ${connectionMetrics.totalErrors}`);
+    }
 
     // Determine if we should retry
     const maxRetries = 5;
     const shouldRetry = connectionState.connectionAttempts < maxRetries;
 
     if (shouldRetry) {
-      console.log(`🔄 Will retry connection (${connectionState.connectionAttempts}/${maxRetries})`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔄 Will retry connection (${connectionState.connectionAttempts}/${maxRetries})`);
+      }
       scheduleReconnection();
       return null; // Return null but don't throw to allow server to continue
     } else {
       console.error(`💥 Max connection attempts (${maxRetries}) reached. Giving up.`);
-      console.error('🔧 Please check your MongoDB connection string and network connectivity.');
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('🔧 Please check your MongoDB connection string and network connectivity.');
+      }
       throw error;
     }
   }
@@ -394,16 +422,22 @@ const connectDB = async () => {
     const connection = await connectWithRetry();
 
     if (connection) {
-      console.log('🎯 Database connection established successfully');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🎯 Database connection established successfully');
+      }
       return connection;
     } else {
-      console.warn('⚠️ Database connection failed but server will continue');
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('⚠️ Database connection failed but server will continue');
+      }
       return null;
     }
 
   } catch (error) {
     console.error(`💥 MongoDB connection failed: ${error.message}`);
-    console.error('🔧 Server will continue without database connection');
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('🔧 Server will continue without database connection');
+    }
 
     // Don't throw error to allow server to start without DB
     return null;

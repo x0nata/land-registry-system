@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import User from "../models/User.js";
+import Property from "../models/Property.js";
 
 // Middleware to authenticate user using JWT
 export const authenticate = async (req, res, next) => {
@@ -113,5 +114,31 @@ export const isOwnerOrAdmin = async (req, res, next) => {
     return res
       .status(500)
       .json({ message: "Server error during authorization check." });
+  }
+};
+
+// Middleware to check if user is the property owner, land officer, or admin
+export const isOwnerOrLandOfficerOrAdmin = async (req, res, next) => {
+  try {
+    const resourceId = req.params.id;
+    const userId = req.user._id;
+    const userRole = req.user.role;
+
+    if (userRole === "admin" || userRole === "landOfficer") {
+      return next();
+    }
+
+    // Check if the property belongs to the user
+    const property = await Property.findById(resourceId);
+    if (!property) {
+      return res.status(404).json({ message: "Property not found." });
+    }
+    if (property.owner && property.owner.toString() === userId.toString()) {
+      return next();
+    }
+    return res.status(403).json({ message: "Access denied. You do not have permission to access this resource." });
+  } catch (error) {
+    console.error("Authorization error:", error.message);
+    return res.status(500).json({ message: "Server error during authorization check." });
   }
 };

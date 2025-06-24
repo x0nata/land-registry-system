@@ -262,19 +262,17 @@ router.get("/atlas-status", authenticate, isAdmin, async (req, res) => {
     // Get Atlas coordination status if available
     let coordinationStatus = null;
     try {
-      const fs = require('fs');
-      const path = require('path');
       const coordinationFile = path.join(process.cwd(), '.atlas-coordination.json');
 
-if (fs.existsSync(coordinationFile)) {
-         const data = fs.readFileSync(coordinationFile, 'utf8');
+      if (fs.existsSync(coordinationFile)) {
+        const data = fs.readFileSync(coordinationFile, 'utf8');
         try {
           coordinationStatus = JSON.parse(data);
         } catch (parseError) {
           console.warn('Invalid JSON in coordination file:', parseError.message);
           coordinationStatus = { error: 'Invalid coordination file format' };
         }
-       }
+      }
     } catch (error) {
       console.warn('Could not read coordination status:', error.message);
     }
@@ -406,3 +404,4 @@ router.use((req, res, next) => {
 });
 
 export default router;
+

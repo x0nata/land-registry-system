@@ -14,7 +14,7 @@ import Contact from './pages/Contact';
 // import Login from './pages/auth/Login'; // Removed
 import AdminLogin from './pages/auth/AdminLogin';
 import LandOfficerLogin from './pages/auth/LandOfficerLogin';
-import LandOfficerHome from './pages/landofficer/LandOfficerHome'; // Corrected import path
+import LandOfficerHome from './pages/landOfficer/LandOfficerHome'; // Corrected import path
 // import Register from './pages/auth/Register'; // Removed
 // import UserDashboard from './pages/user/Dashboard'; // Removed
 // import PropertyRegistration from './pages/user/PropertyRegistration'; // Removed

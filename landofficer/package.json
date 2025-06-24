@@ -8,16 +8,21 @@
     "start": "node server/server.js",
     "server": "nodemon server/server.js",
     "client": "npm run dev --prefix client",
-    "dev": "concurrently \"npm run server\" \"npm run client\""
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build": "cd client && npm install && npm run build",
+    "vercel-build": "cd client && npm install && npm run build",
+    "build:client": "cd client && npm run build",
+    "setup-production": "node deploy-setup.js",
+    "create-indexes": "node server/scripts/addIndexes.js",
+    "seed-admin": "node server/utils/seedAdmin.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "axios": "^1.9.0",
-    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.6.1",
-    "colors": "^1.4.0",
+    "compression": "^1.8.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
@@ -29,6 +34,7 @@
     "multer": "^2.0.0"
   },
   "devDependencies": {
+    "colors": "^1.4.0",
     "concurrently": "^9.1.2",
     "nodemon": "^3.1.10"
   }

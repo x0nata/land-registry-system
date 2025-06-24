@@ -71,9 +71,9 @@ export const getAllProperties = async (filters = {}) => {
 };
 
 // Get pending properties for review (land officer only)
-export const getPendingProperties = async () => {
+export const getPendingProperties = async (params = {}) => {
   try {
-    const response = await api.get('/properties/pending');
+    const response = await api.get('/properties/pending', { params });
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to fetch pending properties' };

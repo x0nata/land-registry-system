@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ClockIcon,
@@ -47,9 +47,11 @@ const RecentActivity = ({
   const loadActivities = async () => {
     try {
       setIsLoading(true);
+      // Optimize: Only fetch what we need, don't over-fetch
+      const fetchLimit = Math.min(limit + 5, 20); // Small buffer for filtering, but cap at 20
       const response = userSpecific
-        ? await getUserRecentActivities({ limit: limit * 2 })
-        : await getRecentActivities({ limit: limit * 2 }); // Get more to allow for filtering
+        ? await getUserRecentActivities({ limit: fetchLimit })
+        : await getRecentActivities({ limit: fetchLimit });
       setActivities(response || []);
     } catch (error) {
       console.error('Error loading recent activities:', error);
@@ -388,4 +390,5 @@ const RecentActivity = ({
   );
 };
 
-export default RecentActivity;
+// Memoize the component to prevent unnecessary re-renders
+export default memo(RecentActivity);

@@ -1,0 +1,47 @@
+# Development files
+node_modules
+.env
+.env.local
+.env.development
+.env.test
+
+# Build artifacts
+client/dist
+client/node_modules
+
+# Development tools
+.vscode
+.idea
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Development uploads
+server/uploads/*
+!server/uploads/.gitkeep
+
+# Development scripts (keep addIndexes.js for production setup)
+server/scripts/*
+!server/scripts/addIndexes.js
+
+# Documentation (already removed)
+*.md
+!README.md
+
+# Git files
+.git
+.gitignore
+
+# Development configuration
+nodemon.json

@@ -14,7 +14,7 @@ import {
   setPropertyUnderReview,
   getPropertyTransferHistory,
 } from "../controllers/propertyController.js";
-import { authenticate, isAdmin, isLandOfficer } from "../middleware/auth.js";
+import { authenticate, isAdmin, isLandOfficer, isOwnerOrLandOfficerOrAdmin } from "../middleware/auth.js";
 import Property from "../models/Property.js";
 import Document from "../models/Document.js";
 import ApplicationLog from "../models/ApplicationLog.js";
@@ -64,16 +64,13 @@ router.get("/", authenticate, isLandOfficer, getAllProperties);
 
 // @route   GET /api/properties/:id
 // @desc    Get a property by ID
-
-// more specific route must come first
-router.get("/:id/transfers", authenticate, isLandOfficer, getPropertyTransferHistory);
-
-// keep generic route after the specific one
+// @access  Private (User)
 router.get("/:id", authenticate, getPropertyById);
+
 // @route   GET /api/properties/:id/transfers
 // @desc    Get property transfer history
-// @access  Private (Admin, Land Officer)
-router.get("/:id/transfers", authenticate, isLandOfficer, getPropertyTransferHistory);
+// @access  Private (Admin, Land Officer, Owner)
+router.get("/:id/transfers", authenticate, isOwnerOrLandOfficerOrAdmin, getPropertyTransferHistory);
 
 // @route   PUT /api/properties/:id
 // @desc    Update a property
