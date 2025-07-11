@@ -134,9 +134,9 @@ const connectServerlessDB = async () => {
     }
 
     // Check for connection string
-    const connectionUri = process.env.MONGO_URI;
+    const connectionUri = process.env.MONGODB_URI;
     if (!connectionUri) {
-      throw new Error('MONGO_URI environment variable is not defined');
+      throw new Error('MONGODB_URI environment variable is not defined');
     }
 
     console.log('🔄 Creating new serverless database connection...');
@@ -178,10 +178,10 @@ const connectWithRetry = async () => {
   connectionState.connectionAttempts++;
 
   try {
-    const connectionUri = process.env.MONGO_URI;
+    const connectionUri = process.env.MONGODB_URI;
     if (!connectionUri) {
-      console.error('❌ MONGO_URI environment variable is not defined');
-      throw new Error('MONGO_URI environment variable is not defined');
+      console.error('❌ MONGODB_URI environment variable is not defined');
+      throw new Error('MONGODB_URI environment variable is not defined');
     }
 
     console.log(`🔄 Connection attempt ${connectionState.connectionAttempts}`);
