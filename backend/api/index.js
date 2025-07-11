@@ -91,6 +91,7 @@ const corsOptions = {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
+      'http://localhost:3002',
       'https://land-registry-user.vercel.app',
       'https://land-registry-landofficer.vercel.app',
       process.env.FRONTEND_URL,

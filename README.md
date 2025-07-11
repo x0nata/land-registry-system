@@ -42,22 +42,27 @@
 - ⚙️ **Configurable Architecture** – Env vars, port configs, and API endpoints
 
 ## 🏗️ System Architecture
-### 🏛️ Land Officer Portal
+### 🏛️ Land Officer Frontend
 - **Purpose:** Admin interface for officials
 - **Users:** Land officers, administrators
 - **Features:** Verification, approval, reporting
 - **Access:** `http://localhost:3000`
 
-### 👥 Citizen Portal
+### 👥 User Frontend
 - **Purpose:** Public interface
 - **Users:** Property owners, citizens
 - **Features:** Registration, document upload, Chapa payment
 - **Access:** `http://localhost:3002`
 
+### 🔗 Unified Backend
+- **Purpose:** Centralized API and database management
+- **Features:** Authentication, property management, payments, documents
+- **Access:** `https://land-registry-backend-plum.vercel.app`
+
 ## ⚙️ Prerequisites
 - Node.js v16+
-- MongoDB v5+
 - Git
+- Internet connection (for unified backend)
 
 ## 🚀 1-Minute Setup
  Clone the repository
@@ -76,3 +81,4 @@ chmod +x start-dev.sh && ./start-dev.sh
 # 🌐 Access the Applications
 - **Land Officer Portal**: `http://localhost:3000`
 - **User Portal**: `http://localhost:3002`
+- **Unified Backend**: `https://land-registry-backend-plum.vercel.app`

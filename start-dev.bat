@@ -1,11 +1,10 @@
 @echo off
-echo Starting Development Environment...
+echo Starting Land Registry System Development Environment...
 echo.
 echo Port Configuration:
 echo - Land Officer Frontend: http://localhost:3000
-echo - Land Officer Server:   http://localhost:3001
 echo - User Frontend:         http://localhost:3002
-echo - User Server:           http://localhost:3003
+echo - Unified Backend:       https://land-registry-backend-plum.vercel.app
 echo.
 
 REM Start Land Officer application

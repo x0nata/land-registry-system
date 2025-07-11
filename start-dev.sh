@@ -1,16 +1,15 @@
  #!/usr/bin/env bash
  set -euo pipefail
 
-# Federal Land Administration System - Development Startup Script
+# Land Registry System - Development Startup Script
 # For Linux/Mac systems
 
-echo "🏛️ Starting Federal Land Administration System Development Environment..."
+echo "🏛️ Starting Land Registry System Development Environment..."
 echo ""
 echo "Port Configuration:"
 echo "- Land Officer Frontend: http://localhost:3000"
-echo "- Land Officer Server:   http://localhost:3001"
 echo "- User Frontend:         http://localhost:3002"
-echo "- User Server:           http://localhost:3003"
+echo "- Unified Backend:       https://land-registry-backend-plum.vercel.app"
 echo ""
 
 # Check if Node.js is installed
@@ -19,25 +18,10 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-# Check if MongoDB is running
-if ! pgrep -x "mongod" > /dev/null; then
-    echo "⚠️  MongoDB is not running. Attempting to start..."
-    
-    # Try different methods to start MongoDB
-    if command -v brew &> /dev/null; then
-        # macOS with Homebrew
-        brew services start mongodb-community
-    elif command -v systemctl &> /dev/null; then
-        # Linux with systemd
-        sudo systemctl start mongod
-    else
-        echo "❌ Could not start MongoDB automatically. Please start MongoDB manually and try again."
-        exit 1
-    fi
-    
-    # Wait a moment for MongoDB to start
-    sleep 3
-fi
+# Note: MongoDB is now handled by the unified backend
+echo "ℹ️  Database is managed by the unified backend at:"
+echo "   https://land-registry-backend-plum.vercel.app"
+echo ""
 
 # Function to check if dependencies are installed
 check_dependencies() {
@@ -104,6 +88,7 @@ echo ""
 echo "📋 Application URLs:"
 echo "   🏛️  Land Officer Portal: http://localhost:3000"
 echo "   👥 User Portal:          http://localhost:3002"
+echo "   🔗 Unified Backend:      https://land-registry-backend-plum.vercel.app"
 echo ""
 echo "⚠️  Note: If applications don't start automatically, check the opened terminal windows."
 echo "   You can also start them manually:"
