@@ -20,6 +20,20 @@ router.use((req, res, next) => {
   next();
 });
 
+// @route   GET /api/db-health
+// @desc    Simple public health check for the db-health route
+// @access  Public
+router.get("/", (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  res.json({
+    message: "Database health routes are working",
+    timestamp: new Date().toISOString(),
+    status: "ok",
+    database: dbStatus,
+    readyState: mongoose.connection.readyState
+  });
+});
+
  // @route   GET /api/db-health/status
 // @desc    Get database connection status and metrics
 // @access  Private (Admin)
@@ -75,6 +89,42 @@ router.get("/ping", authenticate, dbHealthCheckMiddleware, async (req, res) => {
       message: "Database connection is working",
       timestamp: new Date().toISOString(),
       responseTime: Date.now() - req.startTime
+    });
+  } catch (error) {
+    console.error("Database ping failed:", error);
+    res.status(503).json({
+      status: "unhealthy",
+      message: "Database ping failed",
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// @route   GET /api/db-health/public
+// @desc    Public database ping for health monitoring (no auth required)
+// @access  Public
+router.get("/public", async (req, res) => {
+  try {
+    const startTime = Date.now();
+
+    // Check connection state
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        status: "unhealthy",
+        message: "Database not connected",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Perform actual ping
+    await mongoose.connection.db.admin().ping();
+
+    res.json({
+      status: "healthy",
+      message: "Database connection is working",
+      timestamp: new Date().toISOString(),
+      responseTime: Date.now() - startTime
     });
   } catch (error) {
     console.error("Database ping failed:", error);

@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 
 // Import database connection
 import connectDB from "../config/db.js";
+import mongoose from "mongoose";
 
 // Import middleware
 import { errorHandler } from "../middleware/errorMiddleware.js";
@@ -34,6 +35,34 @@ const app = express();
 
 // Trust proxy for Vercel
 app.set('trust proxy', 1);
+
+// Initialize database connection immediately
+let dbConnected = false;
+
+const initializeDatabase = async () => {
+  if (!dbConnected) {
+    try {
+      console.log('🔄 Initializing database connection...');
+      await connectDB();
+      dbConnected = true;
+      console.log('✅ Database connected successfully');
+    } catch (error) {
+      console.error('❌ Database connection failed:', error.message);
+      // Don't exit in serverless environment, just log the error
+    }
+  }
+};
+
+// Connect to database immediately when the module loads
+initializeDatabase();
+
+// Middleware to ensure database connection on each request (for serverless)
+app.use(async (req, res, next) => {
+  if (!dbConnected) {
+    await initializeDatabase();
+  }
+  next();
+});
 
 // Security middleware
 app.use(helmet({
@@ -114,13 +143,24 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api', dbHealthCheckMiddleware);
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  // Ensure database connection
+  if (!dbConnected) {
+    await initializeDatabase();
+  }
+
+  // Check actual database connection status
+  const dbStatus = dbConnected && mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    version: process.env.npm_package_version || '1.0.0',
-    database: req.dbHealthy ? 'connected' : 'disconnected'
+    version: '1.0.0',
+    database: dbStatus,
+    dbReadyState: mongoose.connection.readyState,
+    dbHost: mongoose.connection.host || 'unknown',
+    dbName: mongoose.connection.name || 'unknown'
   });
 });
 
@@ -173,30 +213,6 @@ app.use('*', (req, res) => {
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
-
-// Initialize database connection
-let dbConnected = false;
-
-const initializeDatabase = async () => {
-  if (!dbConnected) {
-    try {
-      await connectDB();
-      dbConnected = true;
-      console.log('Database connected successfully');
-    } catch (error) {
-      console.error('Database connection failed:', error);
-      // Don't exit in serverless environment, just log the error
-    }
-  }
-};
-
-// Initialize database on first request
-app.use(async (req, res, next) => {
-  if (!dbConnected) {
-    await initializeDatabase();
-  }
-  next();
-});
 
 // Export the Express app for Vercel
 export default app;
