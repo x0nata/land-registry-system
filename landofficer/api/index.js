@@ -4,6 +4,20 @@ import helmet from "helmet";
 import compression from "compression";
 import dotenv from "dotenv";
 import { connectServerlessDB, getServerlessConnectionStatus, testServerlessConnection } from "../server/config/serverless-db.js";
+import { notFound, errorHandler } from "../server/middleware/errorMiddleware.js";
+
+// Import routes
+import authRoutes from "../server/routes/authRoutes.js";
+import userRoutes from "../server/routes/userRoutes.js";
+import propertyRoutes from "../server/routes/propertyRoutes.js";
+import documentRoutes from "../server/routes/documentRoutes.js";
+import paymentRoutes from "../server/routes/paymentRoutes.js";
+import applicationLogRoutes from "../server/routes/applicationLogRoutes.js";
+import settingsRoutes from "../server/routes/settingsRoutes.js";
+import reportsRoutes from "../server/routes/reportsRoutes.js";
+import disputeRoutes from "../server/routes/disputeRoutes.js";
+import transferRoutes from "../server/routes/transferRoutes.js";
+import dbHealthRoutes from "../server/routes/dbHealthRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -16,20 +30,41 @@ app.use(helmet());
 app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// CORS configuration - allow empty arrays for production if frontend URLs not set yet
+const corsOrigins = process.env.NODE_ENV === "production"
+  ? [process.env.FRONTEND_URL, process.env.LANDOFFICER_FRONTEND_URL, process.env.BACKEND_URL].filter(Boolean)
+  : ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === "production"
-    ? [process.env.FRONTEND_URL, process.env.BACKEND_URL].filter(Boolean)
-    : ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"],
+  origin: corsOrigins.length > 0 ? corsOrigins : true, // Allow all origins if no URLs configured yet
   credentials: true
 }));
 
+// Database connection middleware for serverless
+app.use(async (req, res, next) => {
+  try {
+    // Ensure database connection for each request in serverless environment
+    await connectServerlessDB();
+    next();
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    res.status(503).json({
+      error: "Database connection failed",
+      message: "Unable to connect to database",
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Root endpoint
 app.get("/", (_req, res) => {
-  res.json({ 
-    message: "Land Officer API - Serverless",
+  res.json({
+    message: "Land Registry System API - Unified Serverless",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
-    version: "1.0.0-serverless"
+    version: "1.0.0-serverless",
+    status: "operational"
   });
 });
 
@@ -140,6 +175,7 @@ app.get("/api/env-check", (_req, res) => {
     CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET ? "✅ Set" : "❌ Not Set",
     NODE_ENV: process.env.NODE_ENV || "❌ Not Set",
     FRONTEND_URL: process.env.FRONTEND_URL ? "✅ Set" : "❌ Not Set",
+    LANDOFFICER_FRONTEND_URL: process.env.LANDOFFICER_FRONTEND_URL ? "✅ Set" : "❌ Not Set",
     BACKEND_URL: process.env.BACKEND_URL ? "✅ Set" : "❌ Not Set"
   };
 
@@ -155,23 +191,21 @@ app.get("/api/env-check", (_req, res) => {
   });
 });
 
-// Error handling middleware
-app.use((error, req, res, next) => {
-  console.error('API Error:', error);
-  res.status(500).json({
-    error: "Internal Server Error",
-    message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : error.message,
-    timestamp: new Date().toISOString()
-  });
-});
+// API Routes - Main application endpoints
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/properties", propertyRoutes);
+app.use("/api/documents", documentRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/logs", applicationLogRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/reports", reportsRoutes);
+app.use("/api/disputes", disputeRoutes);
+app.use("/api/transfers", transferRoutes);
+app.use("/api/db-health", dbHealthRoutes);
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    error: "Not Found",
-    message: `Route ${req.method} ${req.path} not found`,
-    timestamp: new Date().toISOString()
-  });
-});
+// Error handling middleware
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;

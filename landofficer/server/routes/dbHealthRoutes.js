@@ -1,16 +1,37 @@
 import express from "express";
 import mongoose from "mongoose";
-import { 
-  getConnectionStatus, 
-  forceReconnect, 
-  performHealthCheck 
-} from "../config/db.js";
-import { 
-  getCircuitBreakerStatus, 
-  resetCircuitBreaker,
-  dbHealthCheckMiddleware 
-} from "../middleware/dbMiddleware.js";
 import { authenticate, isAdmin } from "../middleware/auth.js";
+
+// Serverless-compatible functions
+const getConnectionStatus = () => {
+  const readyState = mongoose.connection.readyState;
+  const stateNames = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
+  };
+
+  return {
+    state: stateNames[readyState] || 'unknown',
+    readyState,
+    host: mongoose.connection.host,
+    name: mongoose.connection.name,
+    timestamp: new Date().toISOString()
+  };
+};
+
+const performHealthCheck = async () => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return false;
+    }
+    await mongoose.connection.db.admin().ping();
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
 
 const router = express.Router();
 
@@ -82,15 +103,13 @@ router.get("/public", async (req, res) => {
 router.get("/status", authenticate, isAdmin, async (req, res) => {
   try {
     const connectionStatus = getConnectionStatus();
-    const circuitBreakerStatus = getCircuitBreakerStatus();
-    
+
     // Perform a quick health check
     const isHealthy = await performHealthCheck();
-    
+
     res.json({
       timestamp: new Date().toISOString(),
       connection: connectionStatus,
-      circuitBreaker: circuitBreakerStatus,
       healthCheck: {
         isHealthy,
         lastChecked: new Date().toISOString()
@@ -100,13 +119,14 @@ router.get("/status", authenticate, isAdmin, async (req, res) => {
         platform: process.platform,
         uptime: process.uptime(),
         memoryUsage: process.memoryUsage()
-      }
+      },
+      environment: "serverless"
     });
   } catch (error) {
     console.error("Error getting database status:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Error retrieving database status",
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -114,24 +134,27 @@ router.get("/status", authenticate, isAdmin, async (req, res) => {
 // @route   GET /api/db-health/ping
 // @desc    Simple database ping for health monitoring
 // @access  Private
-router.get("/ping", authenticate, dbHealthCheckMiddleware, async (req, res) => {
+router.get("/ping", authenticate, async (req, res) => {
   try {
-    if (!req.dbHealthy) {
+    const startTime = Date.now();
+
+    // Check connection state
+    if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({
         status: "unhealthy",
-        message: req.dbError || "Database connection unavailable",
+        message: "Database not connected",
         timestamp: new Date().toISOString()
       });
     }
 
     // Perform actual ping
     await mongoose.connection.db.admin().ping();
-    
+
     res.json({
       status: "healthy",
       message: "Database connection is working",
       timestamp: new Date().toISOString(),
-      responseTime: Date.now() - req.startTime
+      responseTime: Date.now() - startTime
     });
   } catch (error) {
     console.error("Database ping failed:", error);
@@ -144,63 +167,7 @@ router.get("/ping", authenticate, dbHealthCheckMiddleware, async (req, res) => {
   }
 });
 
-// @route   POST /api/db-health/reconnect
-// @desc    Force database reconnection
-// @access  Private (Admin)
-router.post("/reconnect", authenticate, isAdmin, async (req, res) => {
-  try {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log("Admin initiated database reconnection");
-    }
-
-    const connection = await forceReconnect();
-    
-    if (connection) {
-      res.json({
-        message: "Database reconnection successful",
-        status: "connected",
-        host: connection.host,
-        database: connection.name,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      res.status(500).json({
-        message: "Database reconnection failed",
-        status: "disconnected",
-        timestamp: new Date().toISOString()
-      });
-    }
-  } catch (error) {
-    console.error("Force reconnect failed:", error);
-    res.status(500).json({
-      message: "Database reconnection failed",
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// @route   POST /api/db-health/circuit-breaker/reset
-// @desc    Reset circuit breaker
-// @access  Private (Admin)
-router.post("/circuit-breaker/reset", authenticate, isAdmin, (req, res) => {
-  try {
-    resetCircuitBreaker();
-    
-    res.json({
-      message: "Circuit breaker reset successfully",
-      status: getCircuitBreakerStatus(),
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error("Circuit breaker reset failed:", error);
-    res.status(500).json({
-      message: "Circuit breaker reset failed",
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
+// Note: Reconnect and circuit breaker routes removed for serverless compatibility
 
 // @route   GET /api/db-health/metrics
 // @desc    Get detailed database performance metrics
@@ -208,8 +175,7 @@ router.post("/circuit-breaker/reset", authenticate, isAdmin, (req, res) => {
 router.get("/metrics", authenticate, isAdmin, async (req, res) => {
   try {
     const connectionStatus = getConnectionStatus();
-    const circuitBreakerStatus = getCircuitBreakerStatus();
-    
+
     // Get MongoDB server status if connected
     let serverStatus = null;
     if (mongoose.connection.readyState === 1) {
@@ -224,12 +190,7 @@ router.get("/metrics", authenticate, isAdmin, async (req, res) => {
 
     // Calculate performance metrics
     const metrics = {
-      connection: {
-        ...connectionStatus,
-        poolSize: mongoose.connection.db?.serverConfig?.s?.coreTopology?.s?.options?.maxPoolSize || 'unknown',
-        activeConnections: mongoose.connection.db?.serverConfig?.s?.coreTopology?.s?.pool?.totalConnectionCount || 'unknown'
-      },
-      circuitBreaker: circuitBreakerStatus,
+      connection: connectionStatus,
       server: serverStatus ? {
         version: serverStatus.version,
         uptime: serverStatus.uptime,
@@ -244,7 +205,8 @@ router.get("/metrics", authenticate, isAdmin, async (req, res) => {
         uptime: process.uptime(),
         memoryUsage: process.memoryUsage(),
         cpuUsage: process.cpuUsage()
-      }
+      },
+      environment: "serverless"
     };
 
     res.json({
