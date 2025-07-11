@@ -5,12 +5,10 @@ import path from "path";
 import {
   getConnectionStatus,
   forceReconnect,
-  performHealthCheck
+  testConnection
 } from "../config/db.js";
-import { 
-  getCircuitBreakerStatus, 
-  resetCircuitBreaker,
-  dbHealthCheckMiddleware 
+import {
+  dbHealthCheckMiddleware
 } from "../middleware/dbMiddleware.js";
 import { authenticate, isAdmin } from "../middleware/auth.js";
 
@@ -28,15 +26,13 @@ router.use((req, res, next) => {
 router.get("/status", authenticate, isAdmin, async (req, res) => {
   try {
     const connectionStatus = getConnectionStatus();
-    const circuitBreakerStatus = getCircuitBreakerStatus();
-    
+
     // Perform a quick health check
-    const isHealthy = await performHealthCheck();
-    
+    const isHealthy = await testConnection();
+
     res.json({
       timestamp: new Date().toISOString(),
       connection: connectionStatus,
-      circuitBreaker: circuitBreakerStatus,
       healthCheck: {
         isHealthy,
         lastChecked: new Date().toISOString()
@@ -46,13 +42,14 @@ router.get("/status", authenticate, isAdmin, async (req, res) => {
         platform: process.platform,
         uptime: process.uptime(),
         memoryUsage: process.memoryUsage()
-      }
+      },
+      environment: "serverless"
     });
   } catch (error) {
     console.error("Error getting database status:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Error retrieving database status",
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -124,27 +121,7 @@ router.post("/reconnect", authenticate, isAdmin, async (req, res) => {
   }
 });
 
-// @route   POST /api/db-health/circuit-breaker/reset
-// @desc    Reset circuit breaker
-// @access  Private (Admin)
-router.post("/circuit-breaker/reset", authenticate, isAdmin, (req, res) => {
-  try {
-    resetCircuitBreaker();
-    
-    res.json({
-      message: "Circuit breaker reset successfully",
-      status: getCircuitBreakerStatus(),
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error("Circuit breaker reset failed:", error);
-    res.status(500).json({
-      message: "Circuit breaker reset failed",
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
+// Note: Circuit breaker routes removed for serverless compatibility
 
 // @route   GET /api/db-health/metrics
 // @desc    Get detailed database performance metrics
@@ -152,7 +129,6 @@ router.post("/circuit-breaker/reset", authenticate, isAdmin, (req, res) => {
 router.get("/metrics", authenticate, isAdmin, async (req, res) => {
   try {
     const connectionStatus = getConnectionStatus();
-    const circuitBreakerStatus = getCircuitBreakerStatus();
     
     // Get MongoDB server status if connected
     let serverStatus = null;
@@ -166,12 +142,7 @@ router.get("/metrics", authenticate, isAdmin, async (req, res) => {
 
     // Calculate performance metrics
     const metrics = {
-      connection: {
-        ...connectionStatus,
-        poolSize: mongoose.connection.db?.serverConfig?.s?.coreTopology?.s?.options?.maxPoolSize || 'unknown',
-        activeConnections: mongoose.connection.db?.serverConfig?.s?.coreTopology?.s?.pool?.totalConnectionCount || 'unknown'
-      },
-      circuitBreaker: circuitBreakerStatus,
+      connection: connectionStatus,
       server: serverStatus ? {
         version: serverStatus.version,
         uptime: serverStatus.uptime,
@@ -186,7 +157,8 @@ router.get("/metrics", authenticate, isAdmin, async (req, res) => {
         uptime: process.uptime(),
         memoryUsage: process.memoryUsage(),
         cpuUsage: process.cpuUsage()
-      }
+      },
+      environment: "serverless"
     };
 
     res.json({

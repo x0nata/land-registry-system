@@ -15,7 +15,7 @@ import {
   requestDocumentUpdate,
 } from "../controllers/documentController.js";
 import { authenticate, isUser, isAdminOrLandOfficer } from "../middleware/auth.js";
-import upload from "../config/multer.js";
+import { upload } from "../config/multer.js";
 
 const router = express.Router();
 
