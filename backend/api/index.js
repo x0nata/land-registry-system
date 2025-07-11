@@ -10,7 +10,7 @@ import dotenv from "dotenv";
 import connectDB from "../config/db.js";
 
 // Import middleware
-import { errorHandler } from "../middleware/errorHandler.js";
+import { errorHandler } from "../middleware/errorMiddleware.js";
 import { dbHealthCheckMiddleware } from "../middleware/dbMiddleware.js";
 
 // Import routes
