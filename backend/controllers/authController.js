@@ -266,3 +266,43 @@ export const updateUserProfile = async (req, res) => {
     res.status(500).json({ message: "Server error while updating profile" });
   }
 };
+
+// @desc    Bootstrap admin and land officer users (temporary endpoint)
+// @route   POST /api/auth/bootstrap-roles
+// @access  Public (should be removed after initial setup)
+export const bootstrapRoles = async (req, res) => {
+  try {
+    const { secret } = req.body;
+
+    // Simple secret check for security
+    if (secret !== "bootstrap-land-registry-2025") {
+      return res.status(401).json({ message: "Invalid bootstrap secret" });
+    }
+
+    // Update specific users to admin and landOfficer roles
+    const adminUpdate = await User.findOneAndUpdate(
+      { email: "cooladmin@gmail.com" },
+      { role: "admin" },
+      { new: true }
+    );
+
+    const landOfficerUpdate = await User.findOneAndUpdate(
+      { email: "mrland@gmail.com" },
+      { role: "landOfficer" },
+      { new: true }
+    );
+
+    const results = {
+      admin: adminUpdate ? "Updated" : "Not found",
+      landOfficer: landOfficerUpdate ? "Updated" : "Not found"
+    };
+
+    res.json({
+      message: "Bootstrap completed",
+      results
+    });
+  } catch (error) {
+    console.error("Bootstrap error:", error);
+    res.status(500).json({ message: "Server error during bootstrap" });
+  }
+};

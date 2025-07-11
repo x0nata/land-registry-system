@@ -7,6 +7,7 @@ import {
   loginAdmin,
   getUserProfile,
   updateUserProfile,
+  bootstrapRoles,
 } from "../controllers/authController.js";
 import { authenticate } from "../middleware/auth.js";
 
@@ -96,5 +97,10 @@ router.put(
   ],
   updateUserProfile
 );
+
+// @route   POST /api/auth/bootstrap-roles
+// @desc    Bootstrap admin and land officer roles (temporary)
+// @access  Public
+router.post("/bootstrap-roles", bootstrapRoles);
 
 export default router;
