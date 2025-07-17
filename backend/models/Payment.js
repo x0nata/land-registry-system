@@ -218,7 +218,7 @@ paymentSchema.methods.calculateTotal = function() {
 
 // Static method to get payment statistics
 paymentSchema.statics.getPaymentStats = async function(userId = null) {
-  const matchStage = userId ? { user: mongoose.Types.ObjectId(userId) } : {};
+  const matchStage = userId ? { user: new mongoose.Types.ObjectId(userId) } : {};
 
   const stats = await this.aggregate([
     { $match: matchStage },
