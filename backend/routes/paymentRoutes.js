@@ -25,7 +25,6 @@ import {
 } from "../controllers/paymentController.js";
 import { authenticate, isUser, isAdminOrLandOfficer } from "../middleware/auth.js";
 import { upload } from "../config/multer.js";
-import { check } from "express-validator";
 import {
   authorizePaymentInitialization,
   authorizePaymentProcessing,
