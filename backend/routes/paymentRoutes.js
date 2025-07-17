@@ -14,9 +14,24 @@ import {
   initializeChapaPayment,
   handleChapaCallback,
   verifyChapaPayment,
+  calculatePaymentAmount,
+  initializeCBEBirrPayment,
+  initializeTeleBirrPayment,
+  processCBEBirrPayment,
+  processTeleBirrPayment,
+  generatePaymentReceipt,
+  getPaymentStatistics,
+  verifyPaymentStatus,
 } from "../controllers/paymentController.js";
 import { authenticate, isUser, isAdminOrLandOfficer } from "../middleware/auth.js";
 import { upload } from "../config/multer.js";
+import { check } from "express-validator";
+import {
+  authorizePaymentInitialization,
+  authorizePaymentProcessing,
+  authorizePaymentVerification,
+  verifyPaymentAccess
+} from "../middleware/paymentAuth.js";
 
 const router = express.Router();
 
@@ -70,6 +85,23 @@ router.get("/property/:propertyId", authenticate, getPropertyPayments);
 // @access  Private (User)
 router.get("/user", authenticate, getUserPayments);
 
+// Payment Calculation and Statistics Routes (must be before /:id routes)
+
+// @route   GET /api/payments/calculate/:propertyId
+// @desc    Calculate payment amount for property registration
+// @access  Private (User)
+router.get("/calculate/:propertyId", authenticate, calculatePaymentAmount);
+
+// @route   GET /api/payments/stats
+// @desc    Get payment statistics
+// @access  Private
+router.get("/stats", authenticate, getPaymentStatistics);
+
+// @route   GET /api/payments/verify/:transactionId
+// @desc    Verify payment status by transaction ID
+// @access  Private
+router.get("/verify/:transactionId", authenticate, ...authorizePaymentVerification, verifyPaymentStatus);
+
 // @route   GET /api/payments/:id
 // @desc    Get a payment by ID
 // @access  Private
@@ -113,6 +145,64 @@ router.post(
   authenticate,
   upload.single("receipt"),
   uploadPaymentReceipt
+);
+
+// @route   GET /api/payments/:id/receipt
+// @desc    Generate payment receipt
+// @access  Private
+router.get("/:id/receipt", authenticate, verifyPaymentAccess, generatePaymentReceipt);
+
+// Ethiopian Payment Methods Routes
+
+// @route   POST /api/payments/cbe-birr/initialize/:propertyId
+// @desc    Initialize CBE Birr payment for property
+// @access  Private (User)
+router.post(
+  "/cbe-birr/initialize/:propertyId",
+  [
+    authenticate,
+    ...authorizePaymentInitialization,
+    check("returnUrl", "Return URL must be a valid URL").optional().isURL(),
+  ],
+  initializeCBEBirrPayment
+);
+
+// @route   POST /api/payments/cbe-birr/process/:transactionId
+// @desc    Process CBE Birr payment completion
+// @access  Public (called from payment interface)
+router.post(
+  "/cbe-birr/process/:transactionId",
+  [
+    ...authorizePaymentProcessing,
+    check("cbeAccountNumber", "CBE account number is required").not().isEmpty(),
+    check("cbePin", "CBE PIN is required").isLength({ min: 4 }),
+  ],
+  processCBEBirrPayment
+);
+
+// @route   POST /api/payments/telebirr/initialize/:propertyId
+// @desc    Initialize TeleBirr payment for property
+// @access  Private (User)
+router.post(
+  "/telebirr/initialize/:propertyId",
+  [
+    authenticate,
+    ...authorizePaymentInitialization,
+    check("returnUrl", "Return URL must be a valid URL").optional().isURL(),
+  ],
+  initializeTeleBirrPayment
+);
+
+// @route   POST /api/payments/telebirr/process/:transactionId
+// @desc    Process TeleBirr payment completion
+// @access  Public (called from payment interface)
+router.post(
+  "/telebirr/process/:transactionId",
+  [
+    ...authorizePaymentProcessing,
+    check("telebirrPin", "TeleBirr PIN is required").isLength({ min: 4 }),
+  ],
+  processTeleBirrPayment
 );
 
 // Chapa Payment Routes
