@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { initGridFS } from "./gridfs.js";
 
 // Global connection cache for serverless functions
 let cachedConnection = null;
@@ -150,13 +151,21 @@ const connectServerlessDB = async () => {
     const options = getServerlessConnectionOptions();
     
     const conn = await mongoose.connect(connectionUri, options);
-    
+
     cachedConnection = conn.connection;
-    
+
+    // Initialize GridFS after successful connection
+    try {
+      initGridFS();
+      console.log('✅ GridFS initialized for serverless');
+    } catch (gridfsError) {
+      console.warn('⚠️ GridFS initialization failed:', gridfsError.message);
+    }
+
     console.log('✅ Serverless MongoDB Connected Successfully!');
     console.log('📊 Host:', conn.connection.host);
     console.log('📊 Database:', conn.connection.name);
-    
+
     return cachedConnection;
 
   } catch (error) {
@@ -204,6 +213,14 @@ const connectWithRetry = async () => {
     const startTime = Date.now();
     const conn = await mongoose.connect(connectionUri, options);
     const connectionTime = Date.now() - startTime;
+
+    // Initialize GridFS after successful connection
+    try {
+      initGridFS();
+      console.log('✅ GridFS initialized for standard connection');
+    } catch (gridfsError) {
+      console.warn('⚠️ GridFS initialization failed:', gridfsError.message);
+    }
 
     // Update metrics
     connectionMetrics.lastConnectionTime = connectionTime;
@@ -310,6 +327,14 @@ const setupConnectionEventHandlers = () => {
     connectionState.lastSuccessfulConnection = Date.now();
     connectionState.consecutiveDisconnects = 0;
     connectionState.connectionStabilityScore = Math.min(100, connectionState.connectionStabilityScore + 10);
+
+    // Initialize GridFS on connection
+    try {
+      initGridFS();
+      console.log('✅ GridFS initialized on connection event');
+    } catch (gridfsError) {
+      console.warn('⚠️ GridFS initialization failed on connection event:', gridfsError.message);
+    }
 
     if (process.env.NODE_ENV !== 'production') {
       console.log('✅ MongoDB Connected');

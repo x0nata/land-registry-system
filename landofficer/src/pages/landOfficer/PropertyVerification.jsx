@@ -73,6 +73,18 @@ const PropertyVerification = () => {
 
   const handleApproveProperty = async () => {
     try {
+      // Check if payment is completed before approval
+      if (!selectedProperty.paymentCompleted) {
+        toast.error('Cannot approve property. Payment must be completed first.');
+        return;
+      }
+
+      // Check if documents are validated
+      if (!selectedProperty.documentsValidated) {
+        toast.error('Cannot approve property. All documents must be validated first.');
+        return;
+      }
+
       await approveProperty(selectedProperty._id, approvalNotes);
       setShowApproveModal(false);
       setSelectedProperty(null);
@@ -264,6 +276,9 @@ const PropertyVerification = () => {
                       Documents
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Payment
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -271,7 +286,7 @@ const PropertyVerification = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {properties.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan="8" className="px-6 py-4 text-center text-gray-500">
                         No properties assigned to you
                       </td>
                     </tr>
@@ -314,6 +329,23 @@ const PropertyVerification = () => {
                             {property.documents?.filter(doc => doc.verified).length || 0} verified
                           </div>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm">
+                            {property.paymentCompleted ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                ✓ Completed
+                              </span>
+                            ) : property.documentsValidated ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                ⏳ Required
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                ⏸ Pending
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <Link
                             to={`/landofficer/property-detail-verification/${property._id}`}
@@ -321,7 +353,7 @@ const PropertyVerification = () => {
                           >
                             View Details
                           </Link>
-                          {property.status === 'pending' && areAllDocumentsVerified(property) && (
+                          {property.status === 'pending' && areAllDocumentsVerified(property) && property.paymentCompleted && (
                             <>
                               <button
                                 onClick={() => {
@@ -394,6 +426,24 @@ const PropertyVerification = () => {
                 <p className="text-sm text-gray-500">Owner Contact</p>
                 <p className="font-medium">{selectedProperty.owner?.email || 'No email'}</p>
               </div>
+              <div>
+                <p className="text-sm text-gray-500">Payment Status</p>
+                <div className="flex items-center space-x-2">
+                  {selectedProperty.paymentCompleted ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      ✓ Payment Completed
+                    </span>
+                  ) : selectedProperty.documentsValidated ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                      ⏳ Payment Required
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      ⏸ Payment Pending Validation
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
 
             {selectedProperty.reviewNotes && (
@@ -465,7 +515,7 @@ const PropertyVerification = () => {
 
             <div className="mt-6 flex justify-between">
               <div>
-                {selectedProperty.status === 'pending' && areAllDocumentsVerified(selectedProperty) && (
+                {selectedProperty.status === 'pending' && areAllDocumentsVerified(selectedProperty) && selectedProperty.paymentCompleted && (
                   <div className="flex space-x-2">
                     <button
                       onClick={() => {

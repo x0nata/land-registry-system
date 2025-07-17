@@ -74,8 +74,22 @@ const getFileStream = (fileId) => {
     if (!bucket) {
       throw new Error('GridFS bucket not available');
     }
-    
-    return bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId));
+
+    // Validate fileId
+    if (!fileId) {
+      throw new Error('File ID is required');
+    }
+
+    // Convert to ObjectId if it's a string
+    let objectId;
+    try {
+      objectId = new mongoose.Types.ObjectId(fileId);
+    } catch (idError) {
+      throw new Error(`Invalid file ID format: ${fileId}`);
+    }
+
+    console.log(`📁 Opening download stream for file: ${fileId}`);
+    return bucket.openDownloadStream(objectId);
   } catch (error) {
     console.error(`❌ Failed to get file stream for ${fileId}:`, error.message);
     throw error;
@@ -89,9 +103,35 @@ const getFileInfo = async (fileId) => {
     if (!bucket) {
       throw new Error('GridFS bucket not available');
     }
-    
-    const files = await bucket.find({ _id: new mongoose.Types.ObjectId(fileId) }).toArray();
-    return files.length > 0 ? files[0] : null;
+
+    // Validate fileId
+    if (!fileId) {
+      throw new Error('File ID is required');
+    }
+
+    // Convert to ObjectId if it's a string
+    let objectId;
+    try {
+      objectId = new mongoose.Types.ObjectId(fileId);
+    } catch (idError) {
+      throw new Error(`Invalid file ID format: ${fileId}`);
+    }
+
+    console.log(`📋 Getting file info for: ${fileId}`);
+    const files = await bucket.find({ _id: objectId }).toArray();
+    const fileInfo = files.length > 0 ? files[0] : null;
+
+    if (!fileInfo) {
+      throw new Error(`File not found in GridFS: ${fileId}`);
+    }
+
+    console.log(`📋 File info retrieved:`, {
+      filename: fileInfo.filename,
+      length: fileInfo.length,
+      contentType: fileInfo.contentType || fileInfo.metadata?.mimetype
+    });
+
+    return fileInfo;
   } catch (error) {
     console.error(`❌ Failed to get file info for ${fileId}:`, error.message);
     throw error;
@@ -113,19 +153,98 @@ const listFiles = async (filter = {}) => {
   }
 };
 
-// Upload file to GridFS
-const uploadToGridFS = (filename, options = {}) => {
-  try {
-    const bucket = getGridFSBucket();
-    if (!bucket) {
-      throw new Error('GridFS bucket not available');
+// Upload file to GridFS from file path
+const uploadToGridFS = async (filePath, originalName, metadata = {}) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const bucket = getGridFSBucket();
+      if (!bucket) {
+        throw new Error('GridFS bucket not available');
+      }
+
+      // Generate unique filename
+      const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${originalName}`;
+
+      // Create upload stream
+      const uploadStream = bucket.openUploadStream(filename, {
+        metadata: {
+          ...metadata,
+          originalName: originalName,
+          uploadedAt: new Date()
+        }
+      });
+
+      // Handle upload completion
+      uploadStream.on('finish', () => {
+        resolve({
+          fileId: uploadStream.id,
+          filename: filename,
+          originalName: originalName,
+          size: uploadStream.length
+        });
+      });
+
+      // Handle upload errors
+      uploadStream.on('error', (error) => {
+        reject(error);
+      });
+
+      // Read file and pipe to GridFS
+      const fs = require('fs');
+      const readStream = fs.createReadStream(filePath);
+      readStream.pipe(uploadStream);
+
+    } catch (error) {
+      console.error(`❌ Failed to upload file ${originalName} to GridFS:`, error.message);
+      reject(error);
     }
-    
-    return bucket.openUploadStream(filename, options);
-  } catch (error) {
-    console.error(`❌ Failed to create upload stream for ${filename}:`, error.message);
-    throw error;
-  }
+  });
+};
+
+// Upload file to GridFS from buffer (for direct uploads)
+const uploadBufferToGridFS = async (buffer, originalName, metadata = {}) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const bucket = getGridFSBucket();
+      if (!bucket) {
+        throw new Error('GridFS bucket not available');
+      }
+
+      // Generate unique filename
+      const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${originalName}`;
+
+      // Create upload stream
+      const uploadStream = bucket.openUploadStream(filename, {
+        metadata: {
+          ...metadata,
+          originalName: originalName,
+          uploadedAt: new Date()
+        }
+      });
+
+      // Handle upload completion
+      uploadStream.on('finish', () => {
+        resolve({
+          fileId: uploadStream.id,
+          filename: filename,
+          originalName: originalName,
+          size: uploadStream.length
+        });
+      });
+
+      // Handle upload errors
+      uploadStream.on('error', (error) => {
+        reject(error);
+      });
+
+      // Write buffer to GridFS
+      uploadStream.end(buffer);
+
+    } catch (error) {
+      console.error(`❌ Failed to upload buffer ${originalName} to GridFS:`, error.message);
+      reject(error);
+    }
+  });
 };
 
 export {
@@ -137,5 +256,6 @@ export {
   getFileStream,
   getFileInfo,
   listFiles,
-  uploadToGridFS
+  uploadToGridFS,
+  uploadBufferToGridFS
 };

@@ -3,7 +3,7 @@ import Property from "../models/Property.js";
 import ApplicationLog from "../models/ApplicationLog.js";
 import { validationResult } from "express-validator";
 import fs from "fs";
-import { uploadToGridFS, deleteFromGridFS, getFileStream, getFileInfo } from "../config/gridfs.js";
+import { uploadToGridFS, uploadBufferToGridFS, deleteFromGridFS, getFileStream, getFileInfo } from "../config/gridfs.js";
 
 // Helper function to check if all documents for a property are validated
 const checkAllDocumentsValidated = async (propertyId) => {
@@ -84,31 +84,59 @@ export const uploadDocument = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    // Check if file exists
-    if (!fs.existsSync(req.file.path)) {
-      return res.status(400).json({
-        message: "Uploaded file not found",
-        filePath: req.file.path
-      });
-    }
+    let uploadResult;
 
-    // Upload file to GridFS
-    const uploadResult = await uploadToGridFS(
-      req.file.path,
-      req.file.originalname,
-      {
-        documentType: req.body.documentType,
-        propertyId: property._id,
-        ownerId: req.user._id,
-        uploadDate: new Date()
+    // Handle different storage types
+    if (req.file.path && req.file.path.startsWith('gridfs://')) {
+      // File is already in GridFS (production)
+      uploadResult = {
+        fileId: req.file.id || req.file.gridfsId,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size
+      };
+    } else if (req.file.buffer) {
+      // File is in memory buffer
+      uploadResult = await uploadBufferToGridFS(
+        req.file.buffer,
+        req.file.originalname,
+        {
+          documentType: req.body.documentType,
+          propertyId: property._id,
+          ownerId: req.user._id,
+          uploadDate: new Date()
+        }
+      );
+    } else if (req.file.path) {
+      // File is on disk (development)
+      // Check if file exists
+      if (!fs.existsSync(req.file.path)) {
+        return res.status(400).json({
+          message: "Uploaded file not found",
+          filePath: req.file.path
+        });
       }
-    );
 
-    // Remove file from local storage
-    try {
-      fs.unlinkSync(req.file.path);
-    } catch (unlinkError) {
-      console.warn("Warning: Could not delete temporary file:", unlinkError.message);
+      // Upload file to GridFS
+      uploadResult = await uploadToGridFS(
+        req.file.path,
+        req.file.originalname,
+        {
+          documentType: req.body.documentType,
+          propertyId: property._id,
+          ownerId: req.user._id,
+          uploadDate: new Date()
+        }
+      );
+
+      // Remove file from local storage
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.warn("Warning: Could not delete temporary file:", unlinkError.message);
+      }
+    } else {
+      return res.status(400).json({ message: "Invalid file upload format" });
     }
 
     // Create document in database
@@ -290,31 +318,59 @@ export const updateDocument = async (req, res) => {
       version: document.version,
     };
 
-    // Check if file exists
-    if (!fs.existsSync(req.file.path)) {
-      return res.status(400).json({
-        message: "Uploaded file not found",
-        filePath: req.file.path
-      });
-    }
+    let uploadResult;
 
-    // Upload new file to GridFS
-    const uploadResult = await uploadToGridFS(
-      req.file.path,
-      req.file.originalname,
-      {
-        documentType: document.documentType,
-        propertyId: document.property,
-        ownerId: document.owner,
-        uploadDate: new Date()
+    // Handle different storage types
+    if (req.file.path && req.file.path.startsWith('gridfs://')) {
+      // File is already in GridFS (production)
+      uploadResult = {
+        fileId: req.file.id || req.file.gridfsId,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size
+      };
+    } else if (req.file.buffer) {
+      // File is in memory buffer
+      uploadResult = await uploadBufferToGridFS(
+        req.file.buffer,
+        req.file.originalname,
+        {
+          documentType: document.documentType,
+          propertyId: document.property,
+          ownerId: document.owner,
+          uploadDate: new Date()
+        }
+      );
+    } else if (req.file.path) {
+      // File is on disk (development)
+      // Check if file exists
+      if (!fs.existsSync(req.file.path)) {
+        return res.status(400).json({
+          message: "Uploaded file not found",
+          filePath: req.file.path
+        });
       }
-    );
 
-    // Remove file from local storage
-    try {
-      fs.unlinkSync(req.file.path);
-    } catch (unlinkError) {
-      console.warn("Warning: Could not delete temporary file:", unlinkError.message);
+      // Upload new file to GridFS
+      uploadResult = await uploadToGridFS(
+        req.file.path,
+        req.file.originalname,
+        {
+          documentType: document.documentType,
+          propertyId: document.property,
+          ownerId: document.owner,
+          uploadDate: new Date()
+        }
+      );
+
+      // Remove file from local storage
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.warn("Warning: Could not delete temporary file:", unlinkError.message);
+      }
+    } else {
+      return res.status(400).json({ message: "Invalid file upload format" });
     }
 
     // Update document
@@ -381,13 +437,24 @@ export const downloadDocument = async (req, res) => {
       owner: document.owner
     });
 
-    // Check if user is authorized to view this document (only owner can access)
-    if (document.owner.toString() !== req.user._id.toString()) {
-      console.log('Authorization failed for user:', req.user._id);
+    // Check if user is authorized to view this document
+    // Owner can always access, admin and land officers can access any document
+    const isOwner = document.owner.toString() === req.user._id.toString();
+    const isAdminOrLandOfficer = ['admin', 'landOfficer'].includes(req.user.role);
+
+    if (!isOwner && !isAdminOrLandOfficer) {
+      console.log('Authorization failed for user:', req.user._id, 'Role:', req.user.role);
       return res
         .status(403)
         .json({ message: "Not authorized to view this document" });
     }
+
+    console.log('Authorization successful:', {
+      userId: req.user._id,
+      userRole: req.user.role,
+      isOwner,
+      isAdminOrLandOfficer
+    });
 
     // Check if document has a valid fileId
     if (!document.fileId) {
@@ -398,6 +465,13 @@ export const downloadDocument = async (req, res) => {
     try {
       // Get file info from GridFS with timeout
       console.log('Getting file info from GridFS for fileId:', document.fileId);
+      console.log('Document fileId type:', typeof document.fileId);
+      console.log('Document fileId value:', document.fileId);
+
+      // Validate fileId before proceeding
+      if (!document.fileId) {
+        throw new Error('Document has no fileId');
+      }
 
       // Add timeout for file info retrieval
       const fileInfoPromise = getFileInfo(document.fileId);
@@ -521,13 +595,24 @@ export const previewDocument = async (req, res) => {
       owner: document.owner
     });
 
-    // Check if user is authorized to view this document (only owner can access)
-    if (document.owner.toString() !== req.user._id.toString()) {
-      console.log('Authorization failed for user:', req.user._id);
+    // Check if user is authorized to view this document
+    // Owner can always access, admin and land officers can access any document
+    const isOwner = document.owner.toString() === req.user._id.toString();
+    const isAdminOrLandOfficer = ['admin', 'landOfficer'].includes(req.user.role);
+
+    if (!isOwner && !isAdminOrLandOfficer) {
+      console.log('Authorization failed for user:', req.user._id, 'Role:', req.user.role);
       return res
         .status(403)
         .json({ message: "Not authorized to view this document" });
     }
+
+    console.log('Authorization successful:', {
+      userId: req.user._id,
+      userRole: req.user.role,
+      isOwner,
+      isAdminOrLandOfficer
+    });
 
     // Check if document has a valid fileId
     if (!document.fileId) {
@@ -538,6 +623,13 @@ export const previewDocument = async (req, res) => {
     try {
       // Get file info from GridFS with timeout
       console.log('Getting file info from GridFS for fileId:', document.fileId);
+      console.log('Document fileId type:', typeof document.fileId);
+      console.log('Document fileId value:', document.fileId);
+
+      // Validate fileId before proceeding
+      if (!document.fileId) {
+        throw new Error('Document has no fileId');
+      }
 
       // Add timeout for file info retrieval
       const fileInfoPromise = getFileInfo(document.fileId);

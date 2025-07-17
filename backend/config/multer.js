@@ -26,7 +26,7 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// GridFS storage engine
+// GridFS storage engine for production
 const gridfsStorage = {
   _handleFile: (req, file, cb) => {
     try {
@@ -37,7 +37,7 @@ const gridfsStorage = {
 
       // Generate unique filename
       const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${file.originalname}`;
-      
+
       // Create upload stream
       const uploadStream = bucket.openUploadStream(filename, {
         metadata: {
@@ -56,7 +56,9 @@ const gridfsStorage = {
           mimetype: file.mimetype,
           size: uploadStream.length,
           id: uploadStream.id,
-          gridfsId: uploadStream.id
+          gridfsId: uploadStream.id,
+          // For compatibility with existing code
+          path: `gridfs://${uploadStream.id}`
         });
       });
 
@@ -72,11 +74,11 @@ const gridfsStorage = {
       cb(error);
     }
   },
-  
+
   _removeFile: (req, file, cb) => {
     try {
       const bucket = getGridFSBucket();
-      if (!bucket && file.id) {
+      if (bucket && file.id) {
         bucket.delete(file.id, cb);
       } else {
         cb();

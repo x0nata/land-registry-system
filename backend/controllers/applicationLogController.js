@@ -184,17 +184,33 @@ export const getRecentActivities = async (req, res) => {
     const { limit = 10 } = req.query;
 
     const recentActivities = await ApplicationLog.find()
-      .populate("property", "plotNumber location propertyType")
-      .populate("user", "fullName email nationalId")
-      .populate("performedBy", "fullName email role")
+      .populate({
+        path: "property",
+        select: "plotNumber location propertyType",
+        options: { strictPopulate: false }
+      })
+      .populate({
+        path: "user",
+        select: "fullName email nationalId",
+        options: { strictPopulate: false }
+      })
+      .populate({
+        path: "performedBy",
+        select: "fullName email role",
+        options: { strictPopulate: false }
+      })
       .limit(parseInt(limit))
       .sort({ timestamp: -1 });
 
     res.json(recentActivities);
   } catch (error) {
+    console.error("Error fetching recent activities:", error);
     res
       .status(500)
-      .json({ message: "Server error while fetching recent activities" });
+      .json({
+        message: "Server error while fetching recent activities",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
   }
 };
 
@@ -205,6 +221,8 @@ export const getUserRecentActivities = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
+    console.log('Fetching recent activities for user:', req.user._id);
+
     // Get activities where the user is either the owner or the performer
     const recentActivities = await ApplicationLog.find({
       $or: [
@@ -212,18 +230,36 @@ export const getUserRecentActivities = async (req, res) => {
         { performedBy: req.user._id }
       ]
     })
-      .populate("property", "plotNumber location propertyType")
-      .populate("user", "fullName email nationalId")
-      .populate("performedBy", "fullName email role")
+      .populate({
+        path: "property",
+        select: "plotNumber location propertyType",
+        options: { strictPopulate: false }
+      })
+      .populate({
+        path: "user",
+        select: "fullName email nationalId",
+        options: { strictPopulate: false }
+      })
+      .populate({
+        path: "performedBy",
+        select: "fullName email role",
+        options: { strictPopulate: false }
+      })
       .limit(parseInt(limit))
       .sort({ timestamp: -1 });
 
+    console.log(`Found ${recentActivities.length} recent activities`);
     res.json(recentActivities);
   } catch (error) {
     console.error("Error fetching user recent activities:", error);
+    console.error("Error details:", error.message);
+    console.error("Error stack:", error.stack);
     res
       .status(500)
-      .json({ message: "Server error while fetching user recent activities" });
+      .json({
+        message: "Server error while fetching user recent activities",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
   }
 };
 

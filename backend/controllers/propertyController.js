@@ -1,6 +1,7 @@
 import Property from "../models/Property.js";
 import PropertyTransfer from "../models/PropertyTransfer.js";
 import ApplicationLog from "../models/ApplicationLog.js";
+import Payment from "../models/Payment.js";
 import { validationResult } from "express-validator";
 
 // @desc    Register a new property
@@ -578,3 +579,172 @@ export const getPropertyTransferHistory = async (req, res) => {
     res.status(500).json({ message: "Server error while fetching transfer history" });
   }
 };
+
+// @desc    Check property payment requirements
+// @route   GET /api/properties/:id/payment-requirements
+// @access  Private (User, Admin, Land Officer)
+export const getPropertyPaymentRequirements = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id)
+      .populate('owner', 'fullName email phoneNumber')
+      .populate('payments');
+
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    // Check authorization
+    if (
+      property.owner._id.toString() !== req.user._id.toString() &&
+      !["admin", "landOfficer"].includes(req.user.role)
+    ) {
+      return res.status(403).json({
+        message: "Not authorized to view payment requirements for this property"
+      });
+    }
+
+    // Check current workflow status
+    const workflowStatus = {
+      documentsSubmitted: property.documents && property.documents.length > 0,
+      documentsValidated: property.documentsValidated,
+      paymentRequired: property.documentsValidated && !property.paymentCompleted,
+      paymentCompleted: property.paymentCompleted,
+      readyForApproval: property.documentsValidated && property.paymentCompleted,
+      approved: property.status === 'approved'
+    };
+
+    // Get payment information
+    const completedPayments = property.payments.filter(p => p.status === 'completed');
+    const pendingPayments = property.payments.filter(p => p.status === 'pending');
+    const failedPayments = property.payments.filter(p => p.status === 'failed');
+
+    res.json({
+      success: true,
+      property: {
+        id: property._id,
+        plotNumber: property.plotNumber,
+        status: property.status,
+        propertyType: property.propertyType,
+        area: property.area,
+        location: property.location
+      },
+      workflowStatus,
+      paymentInfo: {
+        required: workflowStatus.paymentRequired,
+        completed: workflowStatus.paymentCompleted,
+        totalPaid: completedPayments.reduce((sum, p) => sum + p.amount, 0),
+        completedPayments: completedPayments.length,
+        pendingPayments: pendingPayments.length,
+        failedPayments: failedPayments.length
+      },
+      nextSteps: getNextSteps(workflowStatus)
+    });
+  } catch (error) {
+    console.error("Error fetching property payment requirements:", error);
+    res.status(500).json({
+      message: "Server error while fetching payment requirements",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Update property status after payment completion
+// @route   PUT /api/properties/:id/payment-completed
+// @access  Private (System/Internal - called by payment controller)
+export const markPropertyPaymentCompleted = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    // Verify payment completion
+    const completedPayments = await Payment.find({
+      property: property._id,
+      status: 'completed',
+      paymentType: 'registration_fee'
+    });
+
+    if (completedPayments.length === 0) {
+      return res.status(400).json({
+        message: "No completed registration fee payments found for this property"
+      });
+    }
+
+    // Update property status
+    property.paymentCompleted = true;
+    property.status = 'payment_completed';
+    property.lastUpdated = Date.now();
+
+    const updatedProperty = await property.save();
+
+    // Create application log
+    await ApplicationLog.create({
+      property: property._id,
+      user: property.owner,
+      action: "payment_workflow_completed",
+      status: "payment_completed",
+      previousStatus: "payment_pending",
+      performedBy: property.owner,
+      performedByRole: 'user',
+      notes: "Payment completed, property ready for land officer approval"
+    });
+
+    res.json({
+      success: true,
+      property: updatedProperty,
+      message: "Property payment status updated successfully"
+    });
+  } catch (error) {
+    console.error("Error updating property payment status:", error);
+    res.status(500).json({
+      message: "Server error while updating property payment status",
+      error: error.message
+    });
+  }
+};
+
+// Helper function to determine next steps in the workflow
+function getNextSteps(workflowStatus) {
+  const steps = [];
+
+  if (!workflowStatus.documentsSubmitted) {
+    steps.push({
+      step: 'submit_documents',
+      title: 'Submit Required Documents',
+      description: 'Upload all required documents for property registration',
+      required: true
+    });
+  } else if (!workflowStatus.documentsValidated) {
+    steps.push({
+      step: 'await_document_validation',
+      title: 'Await Document Validation',
+      description: 'Wait for land officer to validate submitted documents',
+      required: true
+    });
+  } else if (workflowStatus.paymentRequired) {
+    steps.push({
+      step: 'complete_payment',
+      title: 'Complete Registration Payment',
+      description: 'Pay the required registration fees using CBE Birr or TeleBirr',
+      required: true
+    });
+  } else if (workflowStatus.paymentCompleted && !workflowStatus.approved) {
+    steps.push({
+      step: 'await_approval',
+      title: 'Await Final Approval',
+      description: 'Wait for land officer to review and approve the property registration',
+      required: true
+    });
+  } else if (workflowStatus.approved) {
+    steps.push({
+      step: 'registration_complete',
+      title: 'Registration Complete',
+      description: 'Property registration has been successfully completed',
+      required: false
+    });
+  }
+
+  return steps;
+}

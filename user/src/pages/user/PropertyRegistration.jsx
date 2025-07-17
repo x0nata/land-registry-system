@@ -22,9 +22,12 @@ const PropertyRegistration = () => {
     plotNumber: Yup.string().required('Plot number is required'),
     propertyType: Yup.string().required('Property type is required'),
     registrationType: Yup.string().required('Registration type is required'),
-    area: Yup.number()
+    area: Yup.string()
       .required('Area is required')
-      .positive('Area must be a positive number'),
+      .test('is-positive-number', 'Area must be a positive number', (value) => {
+        const num = parseFloat(value);
+        return !isNaN(num) && num > 0;
+      }),
     subCity: Yup.string().required('Sub-city is required'),
     kebele: Yup.string().required('Kebele is required'),
     streetName: Yup.string(),
@@ -40,9 +43,13 @@ const PropertyRegistration = () => {
       then: (schema) => schema.required('Transfer type is required'),
       otherwise: (schema) => schema.notRequired()
     }),
-    transferValue: Yup.number().when('registrationType', {
+    transferValue: Yup.string().when('registrationType', {
       is: 'transferred_property',
-      then: (schema) => schema.min(0, 'Transfer value must be positive').nullable(),
+      then: (schema) => schema.test('is-positive-number', 'Transfer value must be positive', (value) => {
+        if (!value) return true; // Allow empty for nullable
+        const num = parseFloat(value);
+        return !isNaN(num) && num >= 0;
+      }),
       otherwise: (schema) => schema.notRequired()
     }),
     transferReason: Yup.string().when('registrationType', {
@@ -262,11 +269,31 @@ const PropertyRegistration = () => {
     }
   };
 
+  // Validate current step
+  const validateCurrentStep = (values) => {
+    try {
+      if (step === 1) {
+        propertyDetailsSchema.validateSync(values, { abortEarly: false });
+        return true;
+      } else if (step === 2) {
+        ownerDetailsSchema.validateSync(values, { abortEarly: false });
+        return true;
+      }
+      return true;
+    } catch (error) {
+      // Only log validation errors in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Validation errors:', error.errors);
+      }
+      return false;
+    }
+  };
+
   // Next step handler
   const handleNextStep = (values) => {
-    if (step === 1) {
+    if (step === 1 && validateCurrentStep(values)) {
       setStep(2);
-    } else if (step === 2) {
+    } else if (step === 2 && validateCurrentStep(values)) {
       setStep(3);
     } else if (step === 3 && validateDocuments()) {
       setStep(4);
@@ -879,10 +906,15 @@ const PropertyRegistration = () => {
                 {step < 4 ? (
                   <button
                     type="button"
-                    onClick={() => handleNextStep(values)}
-                    className="ml-auto px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
-                    disabled={step === 1 && !propertyDetailsSchema.isValidSync(values) ||
-                             step === 2 && !ownerDetailsSchema.isValidSync(values)}
+                    onClick={() => {
+                      if (validateCurrentStep(values)) {
+                        handleNextStep(values);
+                      } else {
+                        toast.error('Please fill in all required fields correctly before proceeding.');
+                      }
+                    }}
+                    className="ml-auto px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    disabled={!validateCurrentStep(values)}
                   >
                     Next
                   </button>

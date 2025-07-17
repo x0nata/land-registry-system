@@ -1,9 +1,14 @@
 import Payment from "../models/Payment.js";
 import Property from "../models/Property.js";
 import ApplicationLog from "../models/ApplicationLog.js";
+import User from "../models/User.js";
 import { validationResult } from "express-validator";
 import fs from "fs";
 import chapaService from "../services/chapaService.js";
+import PaymentCalculationService from "../services/paymentCalculationService.js";
+import simulatedPaymentGateway from "../services/simulatedPaymentGateway.js";
+import NotificationService from "../services/notificationService.js";
+import crypto from "crypto";
 
 // @desc    Create a new payment for a property
 // @route   POST /api/payments/property/:propertyId
@@ -681,6 +686,741 @@ export const verifyChapaPayment = async (req, res) => {
     console.error("Error verifying Chapa payment:", error);
     res.status(500).json({
       message: "Server error while verifying payment",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Calculate payment amount for property registration
+// @route   GET /api/payments/calculate/:propertyId
+// @access  Private (User)
+export const calculatePaymentAmount = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.propertyId).populate('owner');
+
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    // Check if user is the owner
+    if (property.owner._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        message: "Not authorized to calculate payment for this property"
+      });
+    }
+
+    // Get calculation options from query parameters
+    const options = {
+      isFirstTimeOwner: req.query.firstTimeOwner === 'true',
+      isVeteran: req.query.veteran === 'true',
+      hasDisability: req.query.disability === 'true',
+      isLowIncome: req.query.lowIncome === 'true',
+    };
+
+    // Calculate registration fee
+    const calculation = PaymentCalculationService.calculateRegistrationFee(
+      property,
+      req.user,
+      options
+    );
+
+    res.json({
+      success: true,
+      property: {
+        id: property._id,
+        plotNumber: property.plotNumber,
+        propertyType: property.propertyType,
+        area: property.area,
+        location: property.location
+      },
+      calculation,
+      paymentRequired: !property.paymentCompleted
+    });
+  } catch (error) {
+    console.error("Error calculating payment amount:", error);
+    res.status(500).json({
+      message: "Server error while calculating payment amount",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Initialize CBE Birr payment
+// @route   POST /api/payments/cbe-birr/initialize/:propertyId
+// @access  Private (User)
+export const initializeCBEBirrPayment = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.propertyId).populate('owner');
+
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    // Check if user is the owner
+    if (property.owner._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        message: "Not authorized to make payment for this property"
+      });
+    }
+
+    // Check if documents are validated
+    if (!property.documentsValidated) {
+      return res.status(400).json({
+        message: "Cannot process payment. Documents must be validated first."
+      });
+    }
+
+    // Check if payment is already completed
+    if (property.paymentCompleted) {
+      return res.status(400).json({
+        message: "Payment has already been completed for this property."
+      });
+    }
+
+    // Calculate payment amount
+    const calculation = PaymentCalculationService.calculateRegistrationFee(property, req.user);
+    const amount = calculation.summary.totalAmount;
+
+    // Generate transaction reference
+    const transactionRef = `LR-${property._id}-${Date.now()}`;
+
+    // Initialize CBE Birr payment
+    const paymentData = {
+      amount,
+      currency: 'ETB',
+      customerName: req.user.fullName,
+      customerPhone: req.user.phoneNumber,
+      customerEmail: req.user.email,
+      description: `Property registration payment for plot ${property.plotNumber}`,
+      callbackUrl: `${process.env.BACKEND_URL}/api/payments/cbe-birr/callback`,
+      returnUrl: req.body.returnUrl || `${process.env.FRONTEND_URL}/property/${property._id}`,
+      transactionRef
+    };
+
+    const gatewayResponse = await simulatedPaymentGateway.initializeCBEBirrPayment(paymentData);
+
+    if (!gatewayResponse.success) {
+      return res.status(500).json({
+        message: "Failed to initialize CBE Birr payment",
+        error: gatewayResponse.error
+      });
+    }
+
+    // Create payment record
+    const payment = await Payment.create({
+      property: property._id,
+      user: req.user._id,
+      amount,
+      currency: 'ETB',
+      paymentType: 'registration_fee',
+      paymentMethod: 'cbe_birr',
+      transactionId: gatewayResponse.transactionId,
+      status: 'pending',
+      feeBreakdown: calculation.summary,
+      paymentMethodDetails: {
+        cbeTransactionRef: gatewayResponse.transactionId
+      }
+    });
+
+    // Update property status
+    property.status = 'payment_pending';
+    property.payments.push(payment._id);
+    await property.save();
+
+    // Create application log
+    await ApplicationLog.create({
+      property: property._id,
+      user: req.user._id,
+      action: "cbe_payment_initiated",
+      status: "payment_pending",
+      performedBy: req.user._id,
+      performedByRole: req.user.role,
+      notes: `CBE Birr payment initiated - Amount: ${amount} ETB`
+    });
+
+    res.json({
+      success: true,
+      payment,
+      paymentUrl: gatewayResponse.paymentUrl,
+      transactionId: gatewayResponse.transactionId,
+      expiresAt: gatewayResponse.expiresAt,
+      instructions: gatewayResponse.instructions
+    });
+  } catch (error) {
+    console.error("Error initializing CBE Birr payment:", error);
+    res.status(500).json({
+      message: "Server error while initializing CBE Birr payment",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Initialize TeleBirr payment
+// @route   POST /api/payments/telebirr/initialize/:propertyId
+// @access  Private (User)
+export const initializeTeleBirrPayment = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.propertyId).populate('owner');
+
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
+
+    // Check if user is the owner
+    if (property.owner._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        message: "Not authorized to make payment for this property"
+      });
+    }
+
+    // Check if documents are validated
+    if (!property.documentsValidated) {
+      return res.status(400).json({
+        message: "Cannot process payment. Documents must be validated first."
+      });
+    }
+
+    // Check if payment is already completed
+    if (property.paymentCompleted) {
+      return res.status(400).json({
+        message: "Payment has already been completed for this property."
+      });
+    }
+
+    // Calculate payment amount
+    const calculation = PaymentCalculationService.calculateRegistrationFee(property, req.user);
+    const amount = calculation.summary.totalAmount;
+
+    // Generate transaction reference
+    const transactionRef = `LR-TB-${property._id}-${Date.now()}`;
+
+    // Initialize TeleBirr payment
+    const paymentData = {
+      amount,
+      currency: 'ETB',
+      customerName: req.user.fullName,
+      customerPhone: req.user.phoneNumber,
+      customerEmail: req.user.email,
+      description: `Property registration payment for plot ${property.plotNumber}`,
+      callbackUrl: `${process.env.BACKEND_URL}/api/payments/telebirr/callback`,
+      returnUrl: req.body.returnUrl || `${process.env.FRONTEND_URL}/property/${property._id}`,
+      transactionRef
+    };
+
+    const gatewayResponse = await simulatedPaymentGateway.initializeTeleBirrPayment(paymentData);
+
+    if (!gatewayResponse.success) {
+      return res.status(500).json({
+        message: "Failed to initialize TeleBirr payment",
+        error: gatewayResponse.error
+      });
+    }
+
+    // Create payment record
+    const payment = await Payment.create({
+      property: property._id,
+      user: req.user._id,
+      amount,
+      currency: 'ETB',
+      paymentType: 'registration_fee',
+      paymentMethod: 'telebirr',
+      transactionId: gatewayResponse.transactionId,
+      status: 'pending',
+      feeBreakdown: calculation.summary,
+      paymentMethodDetails: {
+        telebirrPhoneNumber: req.user.phoneNumber,
+        telebirrTransactionId: gatewayResponse.transactionId
+      }
+    });
+
+    // Update property status
+    property.status = 'payment_pending';
+    property.payments.push(payment._id);
+    await property.save();
+
+    // Create application log
+    await ApplicationLog.create({
+      property: property._id,
+      user: req.user._id,
+      action: "telebirr_payment_initiated",
+      status: "payment_pending",
+      performedBy: req.user._id,
+      performedByRole: req.user.role,
+      notes: `TeleBirr payment initiated - Amount: ${amount} ETB`
+    });
+
+    res.json({
+      success: true,
+      payment,
+      paymentUrl: gatewayResponse.paymentUrl,
+      transactionId: gatewayResponse.transactionId,
+      expiresAt: gatewayResponse.expiresAt,
+      instructions: gatewayResponse.instructions
+    });
+  } catch (error) {
+    console.error("Error initializing TeleBirr payment:", error);
+    res.status(500).json({
+      message: "Server error while initializing TeleBirr payment",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Process CBE Birr payment completion
+// @route   POST /api/payments/cbe-birr/process/:transactionId
+// @access  Public (called from payment interface)
+export const processCBEBirrPayment = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const { cbeAccountNumber, cbePin } = req.body;
+
+    // Find payment by transaction ID
+    const payment = await Payment.findOne({
+      transactionId,
+      paymentMethod: 'cbe_birr',
+      status: 'pending'
+    }).populate('property');
+
+    if (!payment) {
+      return res.status(404).json({
+        message: "Payment transaction not found or already processed"
+      });
+    }
+
+    // Process payment through gateway
+    const processingResult = await simulatedPaymentGateway.processCBEBirrPayment(
+      transactionId,
+      { cbeAccountNumber, cbePin }
+    );
+
+    if (processingResult.success) {
+      // Update payment status
+      payment.status = 'completed';
+      payment.completedDate = new Date();
+      payment.paymentMethodDetails.cbeAccountNumber = cbeAccountNumber;
+      payment.generateReceiptNumber();
+      await payment.save();
+
+      // Update property status
+      const property = payment.property;
+      property.paymentCompleted = true;
+      property.status = 'payment_completed';
+      await property.save();
+
+      // Create application log
+      await ApplicationLog.create({
+        property: property._id,
+        user: payment.user,
+        action: "payment_completed",
+        status: "payment_completed",
+        previousStatus: "payment_pending",
+        performedBy: payment.user,
+        performedByRole: 'user',
+        notes: `CBE Birr payment completed - Confirmation: ${processingResult.confirmationCode}`
+      });
+
+      // Send payment success notification
+      const user = await User.findById(payment.user);
+      await NotificationService.sendPaymentSuccessNotification(payment, property, user);
+
+      // Send property ready for approval notification to land officers
+      await NotificationService.sendPropertyReadyForApprovalNotification(property, user);
+
+      res.json({
+        success: true,
+        message: "Payment completed successfully",
+        payment: {
+          id: payment._id,
+          amount: payment.amount,
+          currency: payment.currency,
+          status: payment.status,
+          receiptNumber: payment.receiptNumber,
+          confirmationCode: processingResult.confirmationCode,
+          completedAt: payment.completedDate
+        }
+      });
+    } else {
+      // Update payment status to failed
+      payment.status = 'failed';
+      payment.notes = processingResult.error;
+      await payment.save();
+
+      // Update property status back to documents_validated
+      const property = payment.property;
+      property.status = 'documents_validated';
+      await property.save();
+
+      // Create application log
+      await ApplicationLog.create({
+        property: property._id,
+        user: payment.user,
+        action: "payment_failed",
+        status: "documents_validated",
+        previousStatus: "payment_pending",
+        performedBy: payment.user,
+        performedByRole: 'user',
+        notes: `CBE Birr payment failed - ${processingResult.error}`
+      });
+
+      // Send payment failure notification
+      const user = await User.findById(payment.user);
+      await NotificationService.sendPaymentFailedNotification(payment, property, user, processingResult.error);
+
+      res.status(400).json({
+        success: false,
+        message: processingResult.error,
+        transactionId
+      });
+    }
+  } catch (error) {
+    console.error("Error processing CBE Birr payment:", error);
+    res.status(500).json({
+      message: "Server error while processing CBE Birr payment",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Process TeleBirr payment completion
+// @route   POST /api/payments/telebirr/process/:transactionId
+// @access  Public (called from payment interface)
+export const processTeleBirrPayment = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const { telebirrPin } = req.body;
+
+    // Find payment by transaction ID
+    const payment = await Payment.findOne({
+      transactionId,
+      paymentMethod: 'telebirr',
+      status: 'pending'
+    }).populate('property');
+
+    if (!payment) {
+      return res.status(404).json({
+        message: "Payment transaction not found or already processed"
+      });
+    }
+
+    // Process payment through gateway
+    const processingResult = await simulatedPaymentGateway.processTeleBirrPayment(
+      transactionId,
+      { telebirrPin }
+    );
+
+    if (processingResult.success) {
+      // Update payment status
+      payment.status = 'completed';
+      payment.completedDate = new Date();
+      payment.generateReceiptNumber();
+      await payment.save();
+
+      // Update property status
+      const property = payment.property;
+      property.paymentCompleted = true;
+      property.status = 'payment_completed';
+      await property.save();
+
+      // Create application log
+      await ApplicationLog.create({
+        property: property._id,
+        user: payment.user,
+        action: "payment_completed",
+        status: "payment_completed",
+        previousStatus: "payment_pending",
+        performedBy: payment.user,
+        performedByRole: 'user',
+        notes: `TeleBirr payment completed - Confirmation: ${processingResult.confirmationCode}`
+      });
+
+      // Send payment success notification
+      const user = await User.findById(payment.user);
+      await NotificationService.sendPaymentSuccessNotification(payment, property, user);
+
+      // Send property ready for approval notification to land officers
+      await NotificationService.sendPropertyReadyForApprovalNotification(property, user);
+
+      res.json({
+        success: true,
+        message: "Payment completed successfully",
+        payment: {
+          id: payment._id,
+          amount: payment.amount,
+          currency: payment.currency,
+          status: payment.status,
+          receiptNumber: payment.receiptNumber,
+          confirmationCode: processingResult.confirmationCode,
+          completedAt: payment.completedDate
+        }
+      });
+    } else {
+      // Update payment status to failed
+      payment.status = 'failed';
+      payment.notes = processingResult.error;
+      await payment.save();
+
+      // Update property status back to documents_validated
+      const property = payment.property;
+      property.status = 'documents_validated';
+      await property.save();
+
+      // Create application log
+      await ApplicationLog.create({
+        property: property._id,
+        user: payment.user,
+        action: "payment_failed",
+        status: "documents_validated",
+        previousStatus: "payment_pending",
+        performedBy: payment.user,
+        performedByRole: 'user',
+        notes: `TeleBirr payment failed - ${processingResult.error}`
+      });
+
+      // Send payment failure notification
+      const user = await User.findById(payment.user);
+      await NotificationService.sendPaymentFailedNotification(payment, property, user, processingResult.error);
+
+      res.status(400).json({
+        success: false,
+        message: processingResult.error,
+        transactionId
+      });
+    }
+  } catch (error) {
+    console.error("Error processing TeleBirr payment:", error);
+    res.status(500).json({
+      message: "Server error while processing TeleBirr payment",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Generate payment receipt
+// @route   GET /api/payments/:id/receipt
+// @access  Private
+export const generatePaymentReceipt = async (req, res) => {
+  try {
+    const payment = await Payment.findById(req.params.id)
+      .populate('property', 'plotNumber location propertyType area')
+      .populate('user', 'fullName email phoneNumber nationalId');
+
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
+
+    // Check authorization
+    if (
+      payment.user._id.toString() !== req.user._id.toString() &&
+      !["admin", "landOfficer"].includes(req.user.role)
+    ) {
+      return res.status(403).json({
+        message: "Not authorized to view this receipt"
+      });
+    }
+
+    if (payment.status !== 'completed') {
+      return res.status(400).json({
+        message: "Receipt can only be generated for completed payments"
+      });
+    }
+
+    // Generate receipt data
+    const receiptData = {
+      receiptNumber: payment.receiptNumber,
+      paymentId: payment._id,
+      transactionId: payment.transactionId,
+      paymentDate: payment.completedDate || payment.paymentDate,
+      amount: payment.amount,
+      currency: payment.currency,
+      paymentMethod: payment.paymentMethod,
+      paymentType: payment.paymentType,
+      feeBreakdown: payment.feeBreakdown,
+      property: {
+        plotNumber: payment.property.plotNumber,
+        location: payment.property.location,
+        propertyType: payment.property.propertyType,
+        area: payment.property.area
+      },
+      customer: {
+        name: payment.user.fullName,
+        email: payment.user.email,
+        phone: payment.user.phoneNumber,
+        nationalId: payment.user.nationalId
+      },
+      generatedAt: new Date(),
+      officialStamp: "Ethiopian Land Registry Authority"
+    };
+
+    res.json({
+      success: true,
+      receipt: receiptData
+    });
+  } catch (error) {
+    console.error("Error generating payment receipt:", error);
+    res.status(500).json({
+      message: "Server error while generating receipt",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get payment statistics
+// @route   GET /api/payments/stats
+// @access  Private
+export const getPaymentStatistics = async (req, res) => {
+  try {
+    const userId = req.user.role === 'user' ? req.user._id : null;
+    const stats = await Payment.getPaymentStats(userId);
+
+    // Get additional statistics
+    const recentPayments = await Payment.find(
+      userId ? { user: userId } : {}
+    )
+      .populate('property', 'plotNumber propertyType')
+      .sort({ paymentDate: -1 })
+      .limit(5);
+
+    const paymentMethodStats = await Payment.aggregate([
+      ...(userId ? [{ $match: { user: userId } }] : []),
+      {
+        $group: {
+          _id: '$paymentMethod',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    res.json({
+      success: true,
+      statistics: stats,
+      recentPayments,
+      paymentMethodBreakdown: paymentMethodStats
+    });
+  } catch (error) {
+    console.error("Error fetching payment statistics:", error);
+    res.status(500).json({
+      message: "Server error while fetching payment statistics",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Verify payment status by transaction ID
+// @route   GET /api/payments/verify/:transactionId
+// @access  Private
+export const verifyPaymentStatus = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+
+    // Find payment in database
+    const payment = await Payment.findOne({ transactionId })
+      .populate('property', 'plotNumber status')
+      .populate('user', 'fullName email');
+
+    if (!payment) {
+      return res.status(404).json({
+        message: "Payment transaction not found"
+      });
+    }
+
+    // Check authorization
+    if (
+      payment.user._id.toString() !== req.user._id.toString() &&
+      !["admin", "landOfficer"].includes(req.user.role)
+    ) {
+      return res.status(403).json({
+        message: "Not authorized to verify this payment"
+      });
+    }
+
+    // Verify with payment gateway if needed
+    let gatewayVerification = null;
+    if (['cbe_birr', 'telebirr'].includes(payment.paymentMethod)) {
+      gatewayVerification = await simulatedPaymentGateway.verifyPayment(transactionId);
+    }
+
+    res.json({
+      success: true,
+      payment: {
+        id: payment._id,
+        transactionId: payment.transactionId,
+        status: payment.status,
+        amount: payment.amount,
+        currency: payment.currency,
+        paymentMethod: payment.paymentMethod,
+        paymentDate: payment.paymentDate,
+        completedDate: payment.completedDate,
+        receiptNumber: payment.receiptNumber,
+        property: payment.property,
+        user: payment.user
+      },
+      gatewayVerification
+    });
+  } catch (error) {
+    console.error("Error verifying payment status:", error);
+    res.status(500).json({
+      message: "Server error while verifying payment status",
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get all payments with filtering and pagination
+// @route   GET /api/payments
+// @access  Private (Admin, Land Officer)
+export const getAllPayments = async (req, res) => {
+  try {
+    // Check authorization
+    if (!["admin", "landOfficer"].includes(req.user.role)) {
+      return res.status(403).json({
+        message: "Not authorized to view all payments"
+      });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    // Build filter object
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
+    if (req.query.paymentType) filter.paymentType = req.query.paymentType;
+    if (req.query.userId) filter.user = req.query.userId;
+    if (req.query.propertyId) filter.property = req.query.propertyId;
+
+    // Date range filter
+    if (req.query.startDate || req.query.endDate) {
+      filter.paymentDate = {};
+      if (req.query.startDate) filter.paymentDate.$gte = new Date(req.query.startDate);
+      if (req.query.endDate) filter.paymentDate.$lte = new Date(req.query.endDate);
+    }
+
+    const payments = await Payment.find(filter)
+      .populate('property', 'plotNumber location propertyType')
+      .populate('user', 'fullName email phoneNumber')
+      .sort({ paymentDate: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Payment.countDocuments(filter);
+
+    res.json({
+      success: true,
+      payments,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalPayments: total,
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching all payments:", error);
+    res.status(500).json({
+      message: "Server error while fetching payments",
       error: error.message
     });
   }

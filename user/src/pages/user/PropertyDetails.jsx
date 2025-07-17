@@ -3,11 +3,17 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getPropertyById } from '../../services/propertyService';
 import DocumentManager from '../../components/document/DocumentManager';
+import PaymentMethodSelector from '../../components/payment/PaymentMethodSelector';
+import PaymentStatusIndicator, { PaymentWorkflowProgress } from '../../components/payment/PaymentStatusIndicator';
+import PaymentHistory from '../../components/payment/PaymentHistory';
 import {
   CreditCardIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  HomeIcon,
+  CurrencyDollarIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 
 const PropertyDetails = () => {
@@ -20,6 +26,7 @@ const PropertyDetails = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
+  const [paymentRequirements, setPaymentRequirements] = useState(null);
 
   // Format date
   const formatDate = (dateString) => {
@@ -72,9 +79,77 @@ const PropertyDetails = () => {
     }
   };
 
+  // Fetch payment requirements
+  const fetchPaymentRequirements = async () => {
+    try {
+      const response = await fetch(`/api/properties/${id}/payment-requirements`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setPaymentRequirements(result);
+      } else {
+        console.error('Failed to fetch payment requirements');
+      }
+    } catch (error) {
+      console.error('Error fetching payment requirements:', error);
+    }
+  };
+
+  // Handle payment initiated
+  const handlePaymentInitiated = (paymentResult) => {
+    toast.success('Payment initiated successfully');
+    // Refresh payment requirements
+    fetchPaymentRequirements();
+  };
+
+  // Get workflow steps for progress indicator
+  const getWorkflowSteps = () => {
+    if (!paymentRequirements) return [];
+
+    const { workflowStatus } = paymentRequirements;
+
+    return [
+      {
+        id: 'documents',
+        label: 'Documents Submitted',
+        status: workflowStatus.documentsSubmitted ? 'completed' : 'pending',
+        description: workflowStatus.documentsSubmitted ? 'All documents uploaded' : 'Upload required documents'
+      },
+      {
+        id: 'validation',
+        label: 'Documents Validated',
+        status: workflowStatus.documentsValidated ? 'completed' :
+                workflowStatus.documentsSubmitted ? 'current' : 'pending',
+        description: workflowStatus.documentsValidated ? 'Documents approved by land officer' : 'Awaiting validation'
+      },
+      {
+        id: 'payment',
+        label: 'Payment Required',
+        status: workflowStatus.paymentCompleted ? 'completed' :
+                workflowStatus.paymentRequired ? 'current' : 'pending',
+        description: workflowStatus.paymentCompleted ? 'Payment completed' :
+                    workflowStatus.paymentRequired ? 'Complete registration payment' : 'Payment pending validation'
+      },
+      {
+        id: 'approval',
+        label: 'Final Approval',
+        status: workflowStatus.approved ? 'completed' :
+                workflowStatus.readyForApproval ? 'current' : 'pending',
+        description: workflowStatus.approved ? 'Registration approved' : 'Awaiting land officer approval'
+      }
+    ];
+  };
+
   // Fetch property data on component mount
   useEffect(() => {
-    loadProperty();
+    if (id) {
+      loadProperty();
+      fetchPaymentRequirements();
+    }
   }, [id]);
 
   // Handle payment submission
@@ -191,14 +266,24 @@ const PropertyDetails = () => {
           <div>
             <h1 className="text-2xl font-bold">Property Details</h1>
             <p className="text-gray-600">Plot Number: {property.plotNumber}</p>
+            <p className="text-gray-600">{property.location?.subCity}, {property.location?.kebele}</p>
           </div>
-          <div className="mt-4 md:mt-0 flex items-center">
+          <div className="mt-4 md:mt-0 flex items-center space-x-4">
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(property.status)} capitalize`}>
               {property.status.replace('_', ' ')}
             </span>
+            {paymentRequirements && (
+              <PaymentStatusIndicator
+                status={property.paymentCompleted ? 'completed' :
+                        paymentRequirements.workflowStatus.paymentRequired ? 'required' : 'pending'}
+                amount={paymentRequirements.paymentInfo.totalPaid}
+                size="sm"
+                showAmount={property.paymentCompleted}
+              />
+            )}
             <button
               onClick={() => navigate('/dashboard/user')}
-              className="ml-4 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
             >
               Back to Dashboard
             </button>
@@ -303,6 +388,16 @@ const PropertyDetails = () => {
               onClick={() => setActiveTab('payments')}
             >
               Payments
+            </button>
+            <button
+              className={`py-2 px-4 border-b-2 font-medium text-sm ${
+                activeTab === 'payment'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('payment')}
+            >
+              Payment
             </button>
             <button
               className={`py-2 px-4 border-b-2 font-medium text-sm ${
@@ -485,6 +580,40 @@ const PropertyDetails = () => {
             ) : (
               <p className="text-gray-600">No payment history available.</p>
             )}
+          </div>
+        )}
+
+        {activeTab === 'payment' && (
+          <div className="space-y-6">
+            {/* Workflow Progress */}
+            <PaymentWorkflowProgress steps={getWorkflowSteps()} />
+
+            {/* Payment Section */}
+            {paymentRequirements?.workflowStatus.paymentRequired ? (
+              <PaymentMethodSelector
+                propertyId={id}
+                onPaymentInitiated={handlePaymentInitiated}
+              />
+            ) : (
+              <div className="bg-white rounded-lg shadow-md p-6 text-center">
+                <ClockIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {paymentRequirements?.workflowStatus.paymentCompleted
+                    ? 'Payment Completed'
+                    : 'Payment Not Yet Available'
+                  }
+                </h3>
+                <p className="text-gray-600">
+                  {paymentRequirements?.workflowStatus.paymentCompleted
+                    ? 'Your payment has been completed successfully. Your property is ready for final approval.'
+                    : 'Payment will be available after document validation is complete.'
+                  }
+                </p>
+              </div>
+            )}
+
+            {/* Payment History */}
+            <PaymentHistory propertyId={id} />
           </div>
         )}
 

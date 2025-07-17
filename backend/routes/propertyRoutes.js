@@ -13,6 +13,8 @@ import {
   rejectProperty,
   setPropertyUnderReview,
   getPropertyTransferHistory,
+  getPropertyPaymentRequirements,
+  markPropertyPaymentCompleted,
 } from "../controllers/propertyController.js";
 import { authenticate, isUser, isAdminOrLandOfficer } from "../middleware/auth.js";
 
@@ -110,5 +112,15 @@ router.put("/:id/review", authenticate, isAdminOrLandOfficer, setPropertyUnderRe
 // @desc    Delete a property
 // @access  Private (User)
 router.delete("/:id", authenticate, deleteProperty);
+
+// @route   GET /api/properties/:id/payment-requirements
+// @desc    Check property payment requirements and workflow status
+// @access  Private (User, Admin, Land Officer)
+router.get("/:id/payment-requirements", authenticate, getPropertyPaymentRequirements);
+
+// @route   PUT /api/properties/:id/payment-completed
+// @desc    Update property status after payment completion
+// @access  Private (Internal - called by payment system)
+router.put("/:id/payment-completed", authenticate, markPropertyPaymentCompleted);
 
 export default router;

@@ -70,14 +70,7 @@
 git clone https://github.com/your-repo/land-registry-system.git
 cd land-registry-system
 ```
- Start development environment (Windows)
-```bash
-./start-dev.bat
-```
- Start development environment (Linux/Mac)
-```bash
-chmod +x start-dev.sh && ./start-dev.sh
-```
+
 # 🌐 Access the Applications
 - **Land Officer Portal**: `http://localhost:3000`
 - **User Portal**: `http://localhost:3002`
