@@ -29,6 +29,26 @@ router.get("/", authenticate, isAdminOrLandOfficer, getAllDocuments);
 // @access  Private (Admin, Land Officer)
 router.get("/pending", authenticate, isAdminOrLandOfficer, getPendingDocuments);
 
+// @route   POST /api/documents
+// @desc    Create a document record (for testing)
+// @access  Private (User)
+router.post(
+  "/",
+  authenticate,
+  [
+    check("property", "Property ID is required").not().isEmpty(),
+    check("documentType", "Document type is required").isIn([
+      "title_deed",
+      "id_card",
+      "application_form",
+      "tax_clearance",
+      "other",
+    ]),
+    check("fileName", "File name is required").not().isEmpty(),
+  ],
+  uploadDocument
+);
+
 // @route   POST /api/documents/property/:propertyId
 // @desc    Upload a document for a property
 // @access  Private (User)

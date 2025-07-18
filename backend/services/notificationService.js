@@ -36,16 +36,21 @@ class NotificationService {
 
       await this.createNotification(notification);
 
-      // Create application log
-      await ApplicationLog.create({
-        property: property._id,
-        user: user._id,
-        action: "payment_notification_sent",
-        status: property.status,
-        performedBy: null,
-        performedByRole: 'system',
-        notes: `Payment required notification sent - Amount: ${amount} ETB`
-      });
+      // Create application log (only if database is connected)
+      try {
+        await ApplicationLog.create({
+          property: property._id,
+          user: user._id,
+          action: "other",
+          status: "pending",
+          performedBy: user._id,
+          performedByRole: 'user',
+          notes: `Payment required notification sent - Amount: ${amount} ETB`,
+          metadata: { notificationType: 'payment_required', amount }
+        });
+      } catch (logError) {
+        console.warn('Could not create application log:', logError.message);
+      }
 
       return { success: true, notification };
     } catch (error) {
@@ -83,16 +88,21 @@ class NotificationService {
 
       await this.createNotification(notification);
 
-      // Create application log
-      await ApplicationLog.create({
-        property: property._id,
-        user: user._id,
-        action: "payment_success_notification_sent",
-        status: property.status,
-        performedBy: null,
-        performedByRole: 'system',
-        notes: `Payment success notification sent - Receipt: ${payment.receiptNumber}`
-      });
+      // Create application log (only if database is connected)
+      try {
+        await ApplicationLog.create({
+          property: property._id,
+          user: user._id,
+          action: "other",
+          status: "pending",
+          performedBy: user._id,
+          performedByRole: 'user',
+          notes: `Payment success notification sent - Receipt: ${payment.receiptNumber}`,
+          metadata: { notificationType: 'payment_success', paymentId: payment._id }
+        });
+      } catch (logError) {
+        console.warn('Could not create application log:', logError.message);
+      }
 
       return { success: true, notification };
     } catch (error) {
@@ -132,16 +142,21 @@ class NotificationService {
 
       await this.createNotification(notification);
 
-      // Create application log
-      await ApplicationLog.create({
-        property: property._id,
-        user: user._id,
-        action: "payment_failed_notification_sent",
-        status: property.status,
-        performedBy: null,
-        performedByRole: 'system',
-        notes: `Payment failed notification sent - Reason: ${reason}`
-      });
+      // Create application log (only if database is connected)
+      try {
+        await ApplicationLog.create({
+          property: property._id,
+          user: user._id,
+          action: "other",
+          status: "pending",
+          performedBy: user._id,
+          performedByRole: 'user',
+          notes: `Payment failed notification sent - Reason: ${reason}`,
+          metadata: { notificationType: 'payment_failed', paymentId: payment._id, failureReason: reason }
+        });
+      } catch (logError) {
+        console.warn('Could not create application log:', logError.message);
+      }
 
       return { success: true, notification };
     } catch (error) {
@@ -186,16 +201,21 @@ class NotificationService {
         notifications.push(notification);
       }
 
-      // Create application log
-      await ApplicationLog.create({
-        property: property._id,
-        user: user._id,
-        action: "approval_ready_notification_sent",
-        status: property.status,
-        performedBy: null,
-        performedByRole: 'system',
-        notes: `Property ready for approval notifications sent to ${landOfficers.length} land officers`
-      });
+      // Create application log (only if database is connected)
+      try {
+        await ApplicationLog.create({
+          property: property._id,
+          user: user._id,
+          action: "other",
+          status: "pending",
+          performedBy: user._id,
+          performedByRole: 'user',
+          notes: `Property ready for approval notifications sent to ${landOfficers.length} land officers`,
+          metadata: { notificationType: 'property_ready_approval', landOfficerCount: landOfficers.length }
+        });
+      } catch (logError) {
+        console.warn('Could not create application log:', logError.message);
+      }
 
       return { success: true, notifications };
     } catch (error) {

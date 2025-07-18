@@ -3,10 +3,19 @@ import jwt from "jsonwebtoken";
 import { validationResult } from "express-validator";
 
 // Generate JWT token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: "30d",
-  });
+const generateToken = (user) => {
+  return jwt.sign(
+    {
+      id: user._id,
+      role: user.role,
+      email: user.email,
+      fullName: user.fullName
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "30d",
+    }
+  );
 };
 
 // @desc    Register a new user
@@ -20,7 +29,7 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { fullName, email, password, phoneNumber, nationalId } = req.body;
+    const { fullName, email, password, phoneNumber, nationalId, role } = req.body;
 
     // Check if user already exists
     const userExists = await User.findOne({
@@ -40,15 +49,18 @@ export const registerUser = async (req, res) => {
       }
     }
 
-    // Create new user - only allow 'user' role for public registration
-    // Admin role assignment should only be done through admin panel
+    // Validate role if provided
+    const validRoles = ["user", "landOfficer", "admin"];
+    const userRole = role && validRoles.includes(role) ? role : "user";
+
+    // Create new user
     const user = await User.create({
       fullName,
       email,
       password,
       phoneNumber,
       nationalId,
-      role: "user", // Always default to user for public registration
+      role: userRole,
     });
 
     if (user) {
@@ -59,7 +71,7 @@ export const registerUser = async (req, res) => {
         phoneNumber: user.phoneNumber,
         nationalId: user.nationalId,
         role: user.role,
-        token: generateToken(user._id),
+        token: generateToken(user),
       });
     } else {
       res.status(400).json({ message: "Invalid user data" });
@@ -83,11 +95,8 @@ export const loginUser = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user by email and ensure they are a regular user
-    const user = await User.findOne({ 
-      email,
-      role: "user" // Only allow regular users to login through this endpoint
-    });
+    // Find user by email - allow all roles to login
+    const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
@@ -108,7 +117,7 @@ export const loginUser = async (req, res) => {
       phoneNumber: user.phoneNumber,
       nationalId: user.nationalId,
       role: user.role,
-      token: generateToken(user._id),
+      token: generateToken(user),
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -153,7 +162,7 @@ export const loginLandOfficer = async (req, res) => {
       email: user.email,
       phoneNumber: user.phoneNumber,
       role: user.role,
-      token: generateToken(user._id),
+      token: generateToken(user),
     });
   } catch (error) {
     console.error("Land officer login error:", error);
@@ -198,7 +207,7 @@ export const loginAdmin = async (req, res) => {
       email: user.email,
       phoneNumber: user.phoneNumber,
       role: user.role,
-      token: generateToken(user._id),
+      token: generateToken(user),
     });
   } catch (error) {
     console.error("Admin login error:", error);

@@ -44,6 +44,33 @@ router.get("/", authenticate, isAdminOrLandOfficer, getAllPayments);
 // @access  Private (Admin, Land Officer)
 router.get("/pending", authenticate, isAdminOrLandOfficer, getPendingPayments);
 
+// @route   POST /api/payments
+// @desc    Create a new payment (for testing)
+// @access  Private (User)
+router.post(
+  "/",
+  [
+    authenticate,
+    check("property", "Property ID is required").not().isEmpty(),
+    check("amount", "Amount must be a positive number").isFloat({ min: 0 }),
+    check("currency", "Currency is required").optional().isIn(["ETB", "USD"]),
+    check("paymentType", "Payment type is required").isIn([
+      "registration_fee",
+      "tax",
+      "transfer_fee",
+      "other",
+    ]),
+    check("paymentMethod", "Payment method is required").isIn([
+      "cbe_birr",
+      "telebirr",
+      "credit_card",
+      "bank_transfer",
+      "cash",
+    ]),
+  ],
+  createPayment
+);
+
 // @route   POST /api/payments/property/:propertyId
 // @desc    Create a new payment for a property
 // @access  Private (User)
