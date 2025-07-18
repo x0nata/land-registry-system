@@ -36,32 +36,65 @@ const app = express();
 // Trust proxy for Vercel
 app.set('trust proxy', 1);
 
-// Initialize database connection immediately
+// Enhanced database connection handling for serverless
 let dbConnected = false;
+let connectionPromise = null;
 
 const initializeDatabase = async () => {
-  if (!dbConnected) {
+  // Return existing connection promise if already connecting
+  if (connectionPromise) {
+    console.log('⏳ Database connection already in progress...');
+    return connectionPromise;
+  }
+
+  // Return immediately if already connected
+  if (dbConnected && mongoose.connection.readyState === 1) {
+    console.log('✅ Database already connected');
+    return Promise.resolve();
+  }
+
+  // Create new connection promise
+  connectionPromise = (async () => {
     try {
       console.log('🔄 Initializing database connection...');
       await connectDB();
       dbConnected = true;
       console.log('✅ Database connected successfully');
+      return true;
     } catch (error) {
       console.error('❌ Database connection failed:', error.message);
-      // Don't exit in serverless environment, just log the error
+      dbConnected = false;
+      throw error;
+    } finally {
+      connectionPromise = null;
     }
-  }
+  })();
+
+  return connectionPromise;
 };
 
 // Connect to database immediately when the module loads
-initializeDatabase();
+initializeDatabase().catch(err => {
+  console.error('❌ Initial database connection failed:', err.message);
+});
 
 // Middleware to ensure database connection on each request (for serverless)
 app.use(async (req, res, next) => {
-  if (!dbConnected) {
-    await initializeDatabase();
+  try {
+    // Check connection health
+    if (!dbConnected || mongoose.connection.readyState !== 1) {
+      console.log('🔄 Database not ready, initializing...');
+      await initializeDatabase();
+    }
+    next();
+  } catch (error) {
+    console.error('❌ Database middleware error:', error.message);
+    res.status(503).json({
+      success: false,
+      message: 'Database connection unavailable',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Service temporarily unavailable'
+    });
   }
-  next();
 });
 
 // Security middleware

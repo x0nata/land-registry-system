@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import { validationResult } from "express-validator";
 
 // Generate JWT token
@@ -95,19 +96,36 @@ export const loginUser = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user by email - allow all roles to login
-    const user = await User.findOne({ email });
+    console.log('🔐 Login attempt for:', email);
+
+    // Ensure database connection before query
+    if (mongoose.connection.readyState !== 1) {
+      console.log('⚠️ Database not connected, readyState:', mongoose.connection.readyState);
+      return res.status(503).json({
+        message: "Database connection issue. Please try again.",
+        error: "Service temporarily unavailable"
+      });
+    }
+
+    // Find user by email with timeout protection
+    const user = await User.findOne({ email }).maxTimeMS(5000);
 
     if (!user) {
+      console.log('❌ User not found:', email);
       return res.status(401).json({ message: "Invalid email or password" });
     }
+
+    console.log('✅ User found:', user.email, 'Role:', user.role);
 
     // Check if password matches
     const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
+      console.log('❌ Invalid password for:', email);
       return res.status(401).json({ message: "Invalid email or password" });
     }
+
+    console.log('✅ Login successful for:', email);
 
     // Return user data with token
     res.json({
@@ -121,6 +139,22 @@ export const loginUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error);
+
+    // Handle specific MongoDB errors
+    if (error.name === 'MongooseError' || error.message.includes('buffering timed out')) {
+      return res.status(503).json({
+        message: "Database connection issue. Please try again.",
+        error: "Database temporarily unavailable"
+      });
+    }
+
+    if (error.name === 'MongoTimeoutError' || error.message.includes('timeout')) {
+      return res.status(503).json({
+        message: "Request timeout. Please try again.",
+        error: "Operation timed out"
+      });
+    }
+
     res.status(500).json({ message: "Server error during login" });
   }
 };

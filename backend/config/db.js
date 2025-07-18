@@ -33,20 +33,20 @@ let connectionMetrics = {
 
 // Serverless-optimized connection options
 const getServerlessConnectionOptions = () => ({
-  // Optimized timeouts for serverless
-  serverSelectionTimeoutMS: 3000, // 3 seconds - faster for serverless
-  connectTimeoutMS: 5000, // 5 seconds - reduced for faster startup
-  socketTimeoutMS: 0, // Let Atlas handle socket timeouts
+  // Aggressive timeouts for serverless - fail fast
+  serverSelectionTimeoutMS: 2000, // 2 seconds - very fast for serverless
+  connectTimeoutMS: 3000, // 3 seconds - quick connection
+  socketTimeoutMS: 5000, // 5 seconds socket timeout
 
-  // Minimal pool for serverless with connection reuse
+  // Minimal pool for serverless with immediate connection
   maxPoolSize: 1, // Single connection for serverless
-  minPoolSize: 0, // Start with no connections
-  maxIdleTimeMS: 60000, // 1 minute - allow connection reuse
+  minPoolSize: 1, // Start with 1 connection immediately
+  maxIdleTimeMS: 30000, // 30 seconds - shorter for serverless
+  waitQueueTimeoutMS: 2000, // 2 seconds wait queue timeout
 
   // Enhanced reliability settings
   retryWrites: true,
-  retryReads: true,
-  maxStalenessSeconds: 90, // Allow slightly stale reads for performance
+  retryReads: false, // Disable retry reads for faster failure
 
   // Atlas compatibility
   ssl: true,
@@ -58,8 +58,12 @@ const getServerlessConnectionOptions = () => ({
   // Atlas-specific options
   appName: 'LandManagementSystem-Unified',
 
-  // Compression for better performance
-  compressors: ['zlib'],
+  // Disable compression for faster connection
+  compressors: [],
+
+  // Force immediate connection
+  bufferCommands: false,
+  bufferMaxEntries: 0,
   
   // Write concern
   w: 'majority',
@@ -129,10 +133,10 @@ const calculateBackoffDelay = (attempt) => {
   return delay + Math.random() * 1000; // Add jitter
 };
 
-// Serverless database connection function
+// Serverless database connection function with buffering control
 const connectServerlessDB = async () => {
   try {
-    // Return cached connection if available
+    // Return cached connection if available and healthy
     if (cachedConnection && mongoose.connection.readyState === 1) {
       console.log('🔄 Using cached database connection');
       return cachedConnection;
@@ -145,7 +149,11 @@ const connectServerlessDB = async () => {
     }
 
     console.log('🔄 Creating new serverless database connection...');
-    
+
+    // Disable buffering globally to prevent timeout issues
+    mongoose.set('bufferCommands', false);
+    mongoose.set('bufferMaxEntries', 0);
+
     // Close any existing connection
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
@@ -153,10 +161,20 @@ const connectServerlessDB = async () => {
 
     // Create new connection with serverless options
     const options = getServerlessConnectionOptions();
-    
+
+    console.log('⚙️ Connecting with options:', {
+      serverSelectionTimeoutMS: options.serverSelectionTimeoutMS,
+      connectTimeoutMS: options.connectTimeoutMS,
+      maxPoolSize: options.maxPoolSize
+    });
+
     const conn = await mongoose.connect(connectionUri, options);
 
     cachedConnection = conn.connection;
+
+    // Re-enable buffering after successful connection
+    mongoose.set('bufferCommands', true);
+    mongoose.set('bufferMaxEntries', -1);
 
     // Initialize GridFS after successful connection
     try {
@@ -169,11 +187,15 @@ const connectServerlessDB = async () => {
     console.log('✅ Serverless MongoDB Connected Successfully!');
     console.log('📊 Host:', conn.connection.host);
     console.log('📊 Database:', conn.connection.name);
+    console.log('📊 ReadyState:', mongoose.connection.readyState);
 
     return cachedConnection;
 
   } catch (error) {
     console.error('❌ Serverless MongoDB Connection Error:', error.message);
+    // Re-enable buffering on error
+    mongoose.set('bufferCommands', true);
+    mongoose.set('bufferMaxEntries', -1);
     cachedConnection = null;
     throw error;
   }
