@@ -107,8 +107,16 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Find user by email with timeout protection
-    const user = await User.findOne({ email }).maxTimeMS(5000);
+    // Find user by email with timeout protection and connection check
+    if (mongoose.connection.readyState !== 1) {
+      console.log('⚠️ Database not connected, readyState:', mongoose.connection.readyState);
+      return res.status(503).json({
+        message: "Database connection issue. Please try again.",
+        error: "Service temporarily unavailable"
+      });
+    }
+
+    const user = await User.findOne({ email }).maxTimeMS(8000);
 
     if (!user) {
       console.log('❌ User not found:', email);
