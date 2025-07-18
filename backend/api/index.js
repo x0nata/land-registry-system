@@ -140,6 +140,25 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Add caching headers for static data
+app.use('/api', (req, res, next) => {
+  // Cache static data endpoints for 5 minutes
+  if (req.method === 'GET' && (
+    req.path.includes('/reports/') ||
+    req.path.includes('/settings/') ||
+    req.path.includes('/users') && req.query.dashboard
+  )) {
+    res.set('Cache-Control', 'public, max-age=300'); // 5 minutes
+  }
+
+  // Cache dashboard data for 2 minutes
+  if (req.method === 'GET' && req.query.dashboard) {
+    res.set('Cache-Control', 'public, max-age=120'); // 2 minutes
+  }
+
+  next();
+});
+
 // Database health check middleware for all API routes
 app.use('/api', dbHealthCheckMiddleware);
 

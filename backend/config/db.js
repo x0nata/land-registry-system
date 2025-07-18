@@ -33,29 +33,33 @@ let connectionMetrics = {
 
 // Serverless-optimized connection options
 const getServerlessConnectionOptions = () => ({
-  // Shorter timeouts for serverless
-  serverSelectionTimeoutMS: 5000, // 5 seconds
-  connectTimeoutMS: 10000, // 10 seconds
+  // Optimized timeouts for serverless
+  serverSelectionTimeoutMS: 3000, // 3 seconds - faster for serverless
+  connectTimeoutMS: 5000, // 5 seconds - reduced for faster startup
   socketTimeoutMS: 0, // Let Atlas handle socket timeouts
-  
-  // Minimal pool for serverless
+
+  // Minimal pool for serverless with connection reuse
   maxPoolSize: 1, // Single connection for serverless
   minPoolSize: 0, // Start with no connections
-  maxIdleTimeMS: 30000, // 30 seconds - shorter for serverless
-  
-  // Standard reliability settings
+  maxIdleTimeMS: 60000, // 1 minute - allow connection reuse
+
+  // Enhanced reliability settings
   retryWrites: true,
   retryReads: true,
-  
+  maxStalenessSeconds: 90, // Allow slightly stale reads for performance
+
   // Atlas compatibility
   ssl: true,
   authSource: 'admin',
-  
-  // Disable monitoring for serverless
+
+  // Disable monitoring for serverless performance
   monitorCommands: false,
-  
+
   // Atlas-specific options
   appName: 'LandManagementSystem-Unified',
+
+  // Compression for better performance
+  compressors: ['zlib'],
   
   // Write concern
   w: 'majority',

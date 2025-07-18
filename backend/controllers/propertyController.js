@@ -230,6 +230,7 @@ export const getAllProperties = async (req, res) => {
       search,
       page = 1,
       limit = 10,
+      dashboard = false, // Add dashboard flag for optimized queries
     } = req.query;
 
     // Build query
@@ -257,26 +258,36 @@ export const getAllProperties = async (req, res) => {
       query.$or = [{ plotNumber: { $regex: search, $options: "i" } }];
     }
 
-    // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    // Optimize limit for dashboard requests
+    const effectiveLimit = dashboard ? Math.min(parseInt(limit), 5) : parseInt(limit);
 
-    // Execute query
+    // Pagination
+    const skip = (parseInt(page) - 1) * effectiveLimit;
+
+    // Optimize field selection for dashboard
+    const selectFields = dashboard
+      ? 'plotNumber location.subCity location.kebele status registrationDate propertyType'
+      : '';
+
+    // Execute query with optimizations
     const properties = await Property.find(query)
+      .select(selectFields)
       .populate("owner", "fullName email nationalId")
       .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ registrationDate: -1 });
+      .limit(effectiveLimit)
+      .sort({ registrationDate: -1 })
+      .lean(); // Use lean() for better performance when not modifying documents
 
-    // Get total count for pagination
-    const total = await Property.countDocuments(query);
+    // Get total count for pagination (only if not dashboard request)
+    const total = dashboard ? properties.length : await Property.countDocuments(query);
 
     res.json({
       properties,
       pagination: {
         total,
         page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(total / parseInt(limit)),
+        limit: effectiveLimit,
+        pages: Math.ceil(total / effectiveLimit),
       },
     });
   } catch (error) {
