@@ -133,70 +133,84 @@ const calculateBackoffDelay = (attempt) => {
   return delay + Math.random() * 1000; // Add jitter
 };
 
-// Serverless database connection function with buffering control
+// Aggressive serverless database connection with immediate connection
 const connectServerlessDB = async () => {
   try {
-    // Return cached connection if available and healthy
-    if (cachedConnection && mongoose.connection.readyState === 1) {
-      console.log('🔄 Using cached database connection');
-      return cachedConnection;
-    }
-
-    // Check for connection string
+    // Check for connection string first
     const connectionUri = process.env.MONGODB_URI;
     if (!connectionUri) {
       throw new Error('MONGODB_URI environment variable is not defined');
     }
 
-    console.log('🔄 Creating new serverless database connection...');
+    console.log('🚀 AGGRESSIVE: Starting serverless database connection...');
+    console.log('📍 URI Check:', connectionUri.includes('mongodb') ? 'Valid MongoDB URI' : 'Invalid URI');
 
-    // Disable buffering globally to prevent timeout issues
+    // Force close any existing connections
+    if (mongoose.connection.readyState !== 0) {
+      console.log('🔄 Closing existing connection...');
+      await mongoose.disconnect();
+      await new Promise(resolve => setTimeout(resolve, 100)); // Brief pause
+    }
+
+    // Disable buffering completely for serverless
     mongoose.set('bufferCommands', false);
     mongoose.set('bufferMaxEntries', 0);
 
-    // Close any existing connection
-    if (mongoose.connection.readyState !== 0) {
-      await mongoose.connection.close();
-    }
+    // Ultra-aggressive connection options for serverless
+    const aggressiveOptions = {
+      serverSelectionTimeoutMS: 1500, // 1.5 seconds - very aggressive
+      connectTimeoutMS: 2000, // 2 seconds
+      socketTimeoutMS: 3000, // 3 seconds
+      maxPoolSize: 1,
+      minPoolSize: 1, // Force immediate connection
+      maxIdleTimeMS: 10000, // 10 seconds
+      waitQueueTimeoutMS: 1000, // 1 second
+      retryWrites: false, // Disable for speed
+      retryReads: false,
+      ssl: true,
+      authSource: 'admin',
+      monitorCommands: false,
+      bufferCommands: false,
+      bufferMaxEntries: 0,
+      appName: 'LandRegistry-Serverless-Aggressive'
+    };
 
-    // Create new connection with serverless options
-    const options = getServerlessConnectionOptions();
-
-    console.log('⚙️ Connecting with options:', {
-      serverSelectionTimeoutMS: options.serverSelectionTimeoutMS,
-      connectTimeoutMS: options.connectTimeoutMS,
-      maxPoolSize: options.maxPoolSize
+    console.log('⚙️ AGGRESSIVE connection options:', {
+      serverSelectionTimeoutMS: aggressiveOptions.serverSelectionTimeoutMS,
+      connectTimeoutMS: aggressiveOptions.connectTimeoutMS,
+      maxPoolSize: aggressiveOptions.maxPoolSize,
+      minPoolSize: aggressiveOptions.minPoolSize
     });
 
-    const conn = await mongoose.connect(connectionUri, options);
+    // Force immediate connection with timeout
+    const connectionPromise = mongoose.connect(connectionUri, aggressiveOptions);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Connection timeout after 3 seconds')), 3000)
+    );
+
+    const conn = await Promise.race([connectionPromise, timeoutPromise]);
 
     cachedConnection = conn.connection;
 
-    // Re-enable buffering after successful connection
-    mongoose.set('bufferCommands', true);
-    mongoose.set('bufferMaxEntries', -1);
-
-    // Initialize GridFS after successful connection
-    try {
-      initGridFS();
-      console.log('✅ GridFS initialized for serverless');
-    } catch (gridfsError) {
-      console.warn('⚠️ GridFS initialization failed:', gridfsError.message);
-    }
-
-    console.log('✅ Serverless MongoDB Connected Successfully!');
+    console.log('✅ AGGRESSIVE: Serverless MongoDB Connected!');
     console.log('📊 Host:', conn.connection.host);
     console.log('📊 Database:', conn.connection.name);
     console.log('📊 ReadyState:', mongoose.connection.readyState);
 
+    // Test the connection immediately
+    await mongoose.connection.db.admin().ping();
+    console.log('✅ Database ping successful');
+
     return cachedConnection;
 
   } catch (error) {
-    console.error('❌ Serverless MongoDB Connection Error:', error.message);
-    // Re-enable buffering on error
+    console.error('❌ AGGRESSIVE: Serverless connection failed:', error.message);
+    cachedConnection = null;
+
+    // Reset mongoose state
     mongoose.set('bufferCommands', true);
     mongoose.set('bufferMaxEntries', -1);
-    cachedConnection = null;
+
     throw error;
   }
 };
@@ -282,21 +296,38 @@ const connectWithRetry = async () => {
   }
 };
 
-// Main connection function that chooses between serverless and standard
+// Main connection function with aggressive serverless handling
 const connectDB = async () => {
   try {
+    console.log('🔍 Environment check:', {
+      VERCEL: !!process.env.VERCEL,
+      NODE_ENV: process.env.NODE_ENV,
+      isServerless: isServerless()
+    });
+
     if (isServerless()) {
-      console.log('🚀 Detected serverless environment, using serverless connection...');
-      return await connectServerlessDB();
+      console.log('🚀 SERVERLESS: Using aggressive serverless connection...');
+      const connection = await connectServerlessDB();
+
+      // Verify connection is actually working
+      if (mongoose.connection.readyState !== 1) {
+        throw new Error(`Connection not ready, state: ${mongoose.connection.readyState}`);
+      }
+
+      return connection;
     } else {
-      console.log('🖥️ Detected standard environment, using standard connection...');
+      console.log('🖥️ STANDARD: Using standard connection...');
       return await connectWithRetry();
     }
   } catch (error) {
     console.error(`💥 MongoDB connection failed: ${error.message}`);
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('🔧 Server will continue without database connection');
+    console.error('🔧 Stack:', error.stack);
+
+    // In serverless, we must throw to prevent function from continuing
+    if (isServerless()) {
+      throw error;
     }
+
     return null;
   }
 };

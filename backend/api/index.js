@@ -36,63 +36,96 @@ const app = express();
 // Trust proxy for Vercel
 app.set('trust proxy', 1);
 
-// Enhanced database connection handling for serverless
+// AGGRESSIVE database connection handling for serverless
 let dbConnected = false;
 let connectionPromise = null;
 
 const initializeDatabase = async () => {
-  // Return existing connection promise if already connecting
-  if (connectionPromise) {
-    console.log('⏳ Database connection already in progress...');
-    return connectionPromise;
-  }
+  const startTime = Date.now();
 
-  // Return immediately if already connected
-  if (dbConnected && mongoose.connection.readyState === 1) {
-    console.log('✅ Database already connected');
-    return Promise.resolve();
-  }
-
-  // Create new connection promise
-  connectionPromise = (async () => {
-    try {
-      console.log('🔄 Initializing database connection...');
-      await connectDB();
-      dbConnected = true;
-      console.log('✅ Database connected successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ Database connection failed:', error.message);
-      dbConnected = false;
-      throw error;
-    } finally {
-      connectionPromise = null;
+  try {
+    // Return existing connection promise if already connecting
+    if (connectionPromise) {
+      console.log('⏳ Database connection already in progress...');
+      return await connectionPromise;
     }
-  })();
 
-  return connectionPromise;
+    // Quick health check for existing connection
+    if (dbConnected && mongoose.connection.readyState === 1) {
+      try {
+        await mongoose.connection.db.admin().ping();
+        console.log('✅ Database already connected and healthy');
+        return true;
+      } catch (pingError) {
+        console.log('⚠️ Existing connection unhealthy, reconnecting...');
+        dbConnected = false;
+      }
+    }
+
+    // Create new connection promise with timeout
+    connectionPromise = Promise.race([
+      (async () => {
+        console.log('🚀 AGGRESSIVE: Initializing database connection...');
+        await connectDB();
+
+        // Verify connection is actually working
+        await mongoose.connection.db.admin().ping();
+
+        dbConnected = true;
+        const duration = Date.now() - startTime;
+        console.log(`✅ Database connected successfully in ${duration}ms`);
+        return true;
+      })(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database initialization timeout after 4 seconds')), 4000)
+      )
+    ]);
+
+    const result = await connectionPromise;
+    connectionPromise = null;
+    return result;
+
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error.message);
+    dbConnected = false;
+    connectionPromise = null;
+    throw error;
+  }
 };
 
-// Connect to database immediately when the module loads
-initializeDatabase().catch(err => {
-  console.error('❌ Initial database connection failed:', err.message);
-});
-
-// Middleware to ensure database connection on each request (for serverless)
-app.use(async (req, res, next) => {
+// AGGRESSIVE: Connect to database immediately when the module loads
+(async () => {
   try {
-    // Check connection health
+    await initializeDatabase();
+  } catch (err) {
+    console.error('❌ Initial database connection failed:', err.message);
+  }
+})();
+
+// AGGRESSIVE middleware to ensure database connection on each request
+app.use(async (req, res, next) => {
+  const requestStart = Date.now();
+
+  try {
+    // Quick connection state check
     if (!dbConnected || mongoose.connection.readyState !== 1) {
-      console.log('🔄 Database not ready, initializing...');
+      console.log('🔄 Database not ready, forcing connection...');
       await initializeDatabase();
     }
+
+    const duration = Date.now() - requestStart;
+    if (duration > 100) {
+      console.log(`⚠️ Database check took ${duration}ms`);
+    }
+
     next();
   } catch (error) {
     console.error('❌ Database middleware error:', error.message);
     res.status(503).json({
       success: false,
-      message: 'Database connection unavailable',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Service temporarily unavailable'
+      message: 'Database connection unavailable. Please try again.',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Service temporarily unavailable',
+      timestamp: new Date().toISOString()
     });
   }
 });
