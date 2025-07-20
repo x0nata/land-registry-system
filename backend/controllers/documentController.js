@@ -221,8 +221,12 @@ export const getDocumentById = async (req, res) => {
       return res.status(404).json({ message: "Document not found" });
     }
 
-    // Check if user is authorized to view this document (only owner can access)
-    if (document.owner._id.toString() !== req.user._id.toString()) {
+    // Check if user is authorized to view this document
+    // Allow document owner, admin, and land officers to access
+    if (
+      document.owner._id.toString() !== req.user._id.toString() &&
+      !["admin", "landOfficer"].includes(req.user.role)
+    ) {
       return res
         .status(403)
         .json({ message: "Not authorized to view this document" });

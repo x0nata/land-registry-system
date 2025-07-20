@@ -91,8 +91,12 @@ export const getPropertyById = async (req, res) => {
       return res.status(404).json({ message: "Property not found" });
     }
 
-    // Check if user is authorized to view this property (only owner can access)
-    if (property.owner._id.toString() !== req.user._id.toString()) {
+    // Check if user is authorized to view this property
+    // Allow property owner, admin, and land officers to access
+    if (
+      property.owner._id.toString() !== req.user._id.toString() &&
+      !["admin", "landOfficer"].includes(req.user.role)
+    ) {
       return res
         .status(403)
         .json({ message: "Not authorized to view this property" });

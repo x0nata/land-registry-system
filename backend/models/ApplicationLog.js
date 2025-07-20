@@ -19,6 +19,8 @@ const applicationLogSchema = new mongoose.Schema(
         "document_uploaded",
         "document_verified",
         "document_rejected",
+        "document_update_requested",
+        "all_documents_validated",
         "payment_made",
         "payment_verified",
         "application_approved",
@@ -48,12 +50,12 @@ const applicationLogSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "under_review", "approved", "rejected", "needs_update"],
+      enum: ["pending", "under_review", "approved", "rejected", "needs_update", "verified", "documents_validated", "payment_pending", "payment_completed"],
       required: [true, "Status is required"],
     },
     previousStatus: {
       type: String,
-      enum: ["pending", "under_review", "approved", "rejected", "needs_update"],
+      enum: ["pending", "under_review", "approved", "rejected", "needs_update", "verified", "documents_validated", "payment_pending", "payment_completed"],
     },
     performedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -62,7 +64,7 @@ const applicationLogSchema = new mongoose.Schema(
     },
     performedByRole: {
       type: String,
-      enum: ["admin", "landOfficer", "user"],
+      enum: ["admin", "landOfficer", "user", "system"],
       required: true,
     },
     timestamp: {
