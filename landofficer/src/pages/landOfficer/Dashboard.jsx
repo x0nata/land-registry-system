@@ -51,6 +51,10 @@ const LandOfficerDashboard = () => {
   const [pendingAppsLoading, setPendingAppsLoading] = useState(true);
   const [pendingDocsLoading, setPendingDocsLoading] = useState(true);
 
+  // Error states for better error handling
+  const [pendingAppsError, setPendingAppsError] = useState(null);
+  const [pendingDocsError, setPendingDocsError] = useState(null);
+
   // Real data from API
   const [pendingApplications, setPendingApplications] = useState([]);
   const [pendingDocuments, setPendingDocuments] = useState([]);
@@ -214,6 +218,7 @@ const LandOfficerDashboard = () => {
     try {
       trackPendingAppsLoad();
       setPendingAppsLoading(true);
+      setPendingAppsError(null);
 
       // Check cache first
       const cachedData = getCachedPendingProperties();
@@ -222,13 +227,23 @@ const LandOfficerDashboard = () => {
         console.log('📦 Using cached pending applications data');
       } else {
         // Use dashboard parameter to limit results for better performance
-        const pendingAppsResponse = await getPendingProperties({ dashboard: true });
+        const pendingAppsResponse = await getPendingProperties({ dashboard: true, limit: 10 });
         cachePendingProperties(pendingAppsResponse || []);
         setPendingApplications(pendingAppsResponse || []);
       }
     } catch (error) {
       console.error('Error loading pending applications:', error);
-      toast.error('Failed to load pending applications');
+      setPendingAppsError(error);
+
+      // Enhanced error handling for timeouts
+      if (error.isTimeout) {
+        console.log('Pending applications request timed out, using empty array');
+        // Don't show error toast for timeouts, just log and continue
+        setPendingApplications([]);
+      } else {
+        toast.error(error.message || 'Failed to load pending applications');
+        setPendingApplications([]);
+      }
     } finally {
       setPendingAppsLoading(false);
       finishPendingAppsLoad();
@@ -240,6 +255,7 @@ const LandOfficerDashboard = () => {
     try {
       trackPendingDocsLoad();
       setPendingDocsLoading(true);
+      setPendingDocsError(null);
 
       // Check cache first
       const cachedData = getCachedPendingDocuments();
@@ -248,13 +264,23 @@ const LandOfficerDashboard = () => {
         console.log('📦 Using cached pending documents data');
       } else {
         // Use dashboard parameter to limit results for better performance
-        const pendingDocsResponse = await getPendingDocuments({ dashboard: true });
+        const pendingDocsResponse = await getPendingDocuments({ dashboard: true, limit: 10 });
         cachePendingDocuments(pendingDocsResponse || []);
         setPendingDocuments(pendingDocsResponse || []);
       }
     } catch (error) {
       console.error('Error loading pending documents:', error);
-      toast.error('Failed to load pending documents');
+      setPendingDocsError(error);
+
+      // Enhanced error handling for timeouts
+      if (error.isTimeout) {
+        console.log('Pending documents request timed out, using empty array');
+        // Don't show error toast for timeouts, just log and continue
+        setPendingDocuments([]);
+      } else {
+        toast.error(error.message || 'Failed to load pending documents');
+        setPendingDocuments([]);
+      }
     } finally {
       setPendingDocsLoading(false);
       finishPendingDocsLoad();
@@ -426,6 +452,21 @@ const LandOfficerDashboard = () => {
               </div>
             ))}
           </div>
+        ) : pendingAppsError && pendingAppsError.isTimeout ? (
+          <div className="text-center py-8">
+            <ClockIcon className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Request Timed Out</h3>
+            <p className="text-gray-500 mb-4">
+              Loading pending applications is taking longer than expected.
+            </p>
+            <button
+              onClick={loadPendingApplications}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            >
+              <ClockIcon className="h-4 w-4 mr-2" />
+              Try Again
+            </button>
+          </div>
         ) : pendingApplications.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No pending applications found</p>
         ) : (
@@ -531,6 +572,7 @@ const LandOfficerDashboard = () => {
               showFilters={true}
               showHeader={true}
               className=""
+              dashboard={true}
             />
           </Suspense>
         </div>
@@ -583,6 +625,21 @@ const LandOfficerDashboard = () => {
                 </div>
               </div>
             ))}
+          </div>
+        ) : pendingDocsError && pendingDocsError.isTimeout ? (
+          <div className="text-center py-8">
+            <ClockIcon className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Request Timed Out</h3>
+            <p className="text-gray-500 mb-4">
+              Loading pending documents is taking longer than expected.
+            </p>
+            <button
+              onClick={loadPendingDocuments}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            >
+              <ClockIcon className="h-4 w-4 mr-2" />
+              Try Again
+            </button>
           </div>
         ) : pendingDocuments.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No pending documents found</p>

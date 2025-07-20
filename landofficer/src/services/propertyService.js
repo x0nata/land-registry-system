@@ -1,4 +1,4 @@
-import api from './api';
+import api, { dashboardApi, fastApi } from './api';
 
 // Get all properties for the current user
 export const getUserProperties = async () => {
@@ -73,9 +73,19 @@ export const getAllProperties = async (filters = {}) => {
 // Get pending properties for review (land officer only)
 export const getPendingProperties = async (params = {}) => {
   try {
-    const response = await api.get('/properties/pending', { params });
+    // Use dashboard API for better timeout handling when called from dashboard
+    const apiInstance = params.dashboard ? dashboardApi : api;
+    const response = await apiInstance.get('/properties/pending', { params });
     return response.data;
   } catch (error) {
+    // Enhanced error handling for timeout issues
+    if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {
+      throw {
+        message: 'Request timed out. The server may be experiencing high load. Please try again.',
+        isTimeout: true,
+        originalError: error
+      };
+    }
     throw error.response?.data || { message: 'Failed to fetch pending properties' };
   }
 };

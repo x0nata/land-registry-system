@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ClockIcon,
@@ -16,17 +16,22 @@ import {
 import { getRecentActivities, getUserRecentActivities } from '../../services/applicationLogService';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
+import { debounce } from '../../utils/debounce';
 
 const RecentActivity = ({
   limit = 10,
   showFilters = true,
   showHeader = true,
   className = '',
-  userSpecific = false
+  userSpecific = false,
+  dashboard = false
 }) => {
   const [activities, setActivities] = useState([]);
   const [filteredActivities, setFilteredActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [filters, setFilters] = useState({
     type: 'all',
     timeRange: '7d',
@@ -41,28 +46,67 @@ const RecentActivity = ({
   }, [limit]);
 
   useEffect(() => {
-    applyFilters();
-  }, [activities, filters]);
+    // Use immediate filter application for initial load
+    if (activities.length > 0) {
+      applyFilters();
+    }
+  }, [activities, applyFilters]);
 
-  const loadActivities = async () => {
+  useEffect(() => {
+    // Use debounced filter application for filter changes
+    if (activities.length > 0) {
+      debouncedApplyFilters();
+    }
+  }, [filters, debouncedApplyFilters, activities.length]);
+
+  const loadActivities = async (isRetry = false) => {
     try {
-      setIsLoading(true);
+      if (isRetry) {
+        setIsRetrying(true);
+      } else {
+        setIsLoading(true);
+        setError(null);
+        setRetryCount(0);
+      }
+
       // Optimize: Only fetch what we need, don't over-fetch
       const fetchLimit = Math.min(limit + 5, 20); // Small buffer for filtering, but cap at 20
       const response = userSpecific
-        ? await getUserRecentActivities({ limit: fetchLimit })
-        : await getRecentActivities({ limit: fetchLimit });
+        ? await getUserRecentActivities({ limit: fetchLimit, dashboard })
+        : await getRecentActivities({ limit: fetchLimit, dashboard });
+
       setActivities(response || []);
+      setError(null);
+
+      if (isRetry) {
+        toast.success('Recent activities loaded successfully');
+      }
     } catch (error) {
       console.error('Error loading recent activities:', error);
-      toast.error('Failed to load recent activities');
+      setError(error);
+
+      if (error.isTimeout) {
+        // Don't show toast for timeout errors, we'll show a retry button instead
+        console.log('Request timed out, showing retry option');
+      } else {
+        toast.error(error.message || 'Failed to load recent activities');
+      }
+
       setActivities([]);
     } finally {
       setIsLoading(false);
+      setIsRetrying(false);
     }
   };
 
-  const applyFilters = () => {
+  // Manual retry function
+  const handleRetry = async () => {
+    setRetryCount(prev => prev + 1);
+    await loadActivities(true);
+  };
+
+  // Memoize the filter function for better performance
+  const applyFilters = useCallback(() => {
     let filtered = [...activities];
 
     // Filter by type
@@ -90,7 +134,13 @@ const RecentActivity = ({
     }
 
     setFilteredActivities(filtered.slice(0, limit));
-  };
+  }, [activities, filters, limit]);
+
+  // Create a debounced version of applyFilters for better performance
+  const debouncedApplyFilters = useMemo(
+    () => debounce(applyFilters, 300),
+    [applyFilters]
+  );
 
   const getActivityIcon = (action, status) => {
     const iconClass = "h-5 w-5";
@@ -310,7 +360,66 @@ const RecentActivity = ({
 
       {/* Activity List */}
       <div className="p-6">
-        {filteredActivities.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, index) => (
+              <div key={index} className="animate-pulse">
+                <div className="flex space-x-4">
+                  <div className="h-10 w-10 bg-gray-200 rounded-full"></div>
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error && error.isTimeout ? (
+          <div className="text-center py-8">
+            <ExclamationTriangleIcon className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Request Timed Out</h3>
+            <p className="text-gray-500 mb-4">
+              The server is taking longer than expected to respond. This might be due to high server load.
+            </p>
+            <button
+              onClick={handleRetry}
+              disabled={isRetrying}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isRetrying ? (
+                <>
+                  <div className="animate-spin -ml-1 mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  Retrying...
+                </>
+              ) : (
+                <>
+                  <ClockIcon className="h-4 w-4 mr-2" />
+                  Try Again {retryCount > 0 && `(${retryCount})`}
+                </>
+              )}
+            </button>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8">
+            <XCircleIcon className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to Load</h3>
+            <p className="text-gray-500 mb-4">{error.message || 'An error occurred while loading recent activities.'}</p>
+            <button
+              onClick={handleRetry}
+              disabled={isRetrying}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isRetrying ? (
+                <>
+                  <div className="animate-spin -ml-1 mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  Retrying...
+                </>
+              ) : (
+                'Try Again'
+              )}
+            </button>
+          </div>
+        ) : filteredActivities.length === 0 ? (
           <div className="text-center py-8">
             <ClockIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">No recent activity found</p>

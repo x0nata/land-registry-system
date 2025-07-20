@@ -1,4 +1,4 @@
-import api from './api';
+import api, { dashboardApi, fastApi } from './api';
 
 // Get all documents (admin/land officer only)
 export const getAllDocuments = async (filters = {}) => {
@@ -128,9 +128,19 @@ export const updateDocument = async (documentId, documentData, file) => {
 // Get all pending documents for verification (land officer only)
 export const getPendingDocuments = async (params = {}) => {
   try {
-    const response = await api.get('/documents/pending', { params });
+    // Use dashboard API for better timeout handling when called from dashboard
+    const apiInstance = params.dashboard ? dashboardApi : api;
+    const response = await apiInstance.get('/documents/pending', { params });
     return response.data;
   } catch (error) {
+    // Enhanced error handling for timeout issues
+    if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {
+      throw {
+        message: 'Request timed out while fetching pending documents. Please try again.',
+        isTimeout: true,
+        originalError: error
+      };
+    }
     throw error.response?.data || { message: 'Failed to fetch pending documents' };
   }
 };

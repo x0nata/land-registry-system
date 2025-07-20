@@ -11,7 +11,18 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  withCredentials: true // Enable sending cookies
+  withCredentials: true, // Enable sending cookies
+  timeout: 30000, // 30 seconds default timeout
+  // Retry configuration
+  retry: 3,
+  retryDelay: 1000, // Start with 1 second delay
+  retryCondition: (error) => {
+    // Retry on network errors, timeouts, and 5xx server errors
+    return !error.response ||
+           error.code === 'ECONNABORTED' ||
+           error.code === 'NETWORK_ERROR' ||
+           (error.response && error.response.status >= 500);
+  }
 });
 
 // Add a request interceptor to add the auth token to requests
@@ -44,22 +55,109 @@ api.interceptors.request.use(
   }
 );
 
-// Add a response interceptor to handle common errors
+// Retry logic with exponential backoff
+const retryRequest = async (error) => {
+  const config = error.config;
+
+  // Initialize retry count if not present
+  if (!config.__retryCount) {
+    config.__retryCount = 0;
+  }
+
+  // Check if we should retry
+  if (config.__retryCount >= api.defaults.retry || !api.defaults.retryCondition(error)) {
+    return Promise.reject(error);
+  }
+
+  // Increment retry count
+  config.__retryCount += 1;
+
+  // Calculate delay with exponential backoff
+  const delay = api.defaults.retryDelay * Math.pow(2, config.__retryCount - 1);
+
+  console.log(`🔄 Retrying request (attempt ${config.__retryCount}/${api.defaults.retry}) after ${delay}ms delay`);
+
+  // Wait for the delay
+  await new Promise(resolve => setTimeout(resolve, delay));
+
+  // Retry the request
+  return api(config);
+};
+
+// Add a response interceptor to handle common errors and retries
 api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
-    if (error.response) {
-      // Handle 401 Unauthorized errors (token expired, etc.)
-      if (error.response.status === 401) {
-        localStorage.removeItem('user');
-        sessionStorage.removeItem('user');
+  async (error) => {
+    // Handle 401 Unauthorized errors (token expired, etc.)
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('user');
+      sessionStorage.removeItem('user');
+      // Don't retry 401 errors
+      return Promise.reject(error);
+    }
+
+    // Handle timeout and network errors with retry logic
+    if (error.code === 'ECONNABORTED' ||
+        error.code === 'NETWORK_ERROR' ||
+        !error.response ||
+        (error.response && error.response.status >= 500)) {
+
+      try {
+        return await retryRequest(error);
+      } catch (retryError) {
+        // If all retries failed, return the original error with additional context
+        const enhancedError = {
+          ...retryError,
+          message: `Request failed after ${api.defaults.retry} retries: ${retryError.message}`,
+          isRetryExhausted: true
+        };
+        return Promise.reject(enhancedError);
       }
     }
 
     return Promise.reject(error);
   }
 );
+
+// Create specialized API instances for different use cases
+export const dashboardApi = axios.create({
+  ...api.defaults,
+  timeout: 45000, // 45 seconds for dashboard calls (they can be slower)
+  retry: 2, // Fewer retries for dashboard to avoid long waits
+  retryDelay: 2000 // Longer initial delay for dashboard calls
+});
+
+// Apply the same interceptors to dashboard API
+dashboardApi.interceptors.request = api.interceptors.request;
+dashboardApi.interceptors.response = api.interceptors.response;
+
+// Create a fast API instance for critical calls
+export const fastApi = axios.create({
+  ...api.defaults,
+  timeout: 15000, // 15 seconds for fast calls
+  retry: 3,
+  retryDelay: 500 // Shorter delay for fast calls
+});
+
+// Apply the same interceptors to fast API
+fastApi.interceptors.request = api.interceptors.request;
+fastApi.interceptors.response = api.interceptors.response;
+
+// Helper function to create API calls with custom timeout
+export const createApiCall = (customTimeout = 30000, customRetries = 3) => {
+  const customApi = axios.create({
+    ...api.defaults,
+    timeout: customTimeout,
+    retry: customRetries,
+    retryDelay: Math.min(customTimeout / 10, 2000) // Dynamic delay based on timeout
+  });
+
+  customApi.interceptors.request = api.interceptors.request;
+  customApi.interceptors.response = api.interceptors.response;
+
+  return customApi;
+};
 
 export default api;

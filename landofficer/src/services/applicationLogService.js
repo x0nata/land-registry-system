@@ -1,4 +1,4 @@
-import api from './api';
+import api, { dashboardApi, fastApi } from './api';
 
 // Get application logs for a property
 export const getPropertyLogs = async (propertyId) => {
@@ -43,9 +43,19 @@ export const addComment = async (propertyId, comment) => {
 // Get recent activities (admin/land officer only)
 export const getRecentActivities = async (params = {}) => {
   try {
-    const response = await api.get('/logs/recent', { params });
+    // Use dashboard API for better timeout handling when called from dashboard
+    const apiInstance = params.dashboard ? dashboardApi : api;
+    const response = await apiInstance.get('/logs/recent', { params });
     return response.data;
   } catch (error) {
+    // Enhanced error handling for timeout issues
+    if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {
+      throw {
+        message: 'Request timed out while fetching recent activities. Please try again.',
+        isTimeout: true,
+        originalError: error
+      };
+    }
     throw error.response?.data || { message: 'Failed to fetch recent activities' };
   }
 };
@@ -53,9 +63,19 @@ export const getRecentActivities = async (params = {}) => {
 // Get recent activities for the current user
 export const getUserRecentActivities = async (params = {}) => {
   try {
-    const response = await api.get('/logs/user/recent', { params });
+    // Use dashboard API for better timeout handling when called from dashboard
+    const apiInstance = params.dashboard ? dashboardApi : api;
+    const response = await apiInstance.get('/logs/user/recent', { params });
     return response.data;
   } catch (error) {
+    // Enhanced error handling for timeout issues
+    if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {
+      throw {
+        message: 'Request timed out while fetching user activities. Please try again.',
+        isTimeout: true,
+        originalError: error
+      };
+    }
     throw error.response?.data || { message: 'Failed to fetch user recent activities' };
   }
 };
