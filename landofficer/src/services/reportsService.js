@@ -1,11 +1,43 @@
-import api from './api';
+import api, { dashboardApi, fastApi } from './api';
 
 // Get property statistics
 export const getPropertyStats = async (filters = {}) => {
   try {
-    const response = await api.get('/reports/properties', { params: filters });
+    // Use fast API for stats to improve dashboard loading performance
+    const apiInstance = filters.dashboard ? fastApi : api;
+
+    // Clean up params to avoid sending undefined values
+    const cleanParams = Object.fromEntries(
+      Object.entries(filters).filter(([_, value]) => value !== undefined && value !== null)
+    );
+
+    console.log('📊 Fetching property stats with params:', cleanParams);
+
+    const response = await apiInstance.get('/reports/properties', { params: cleanParams });
+
+    console.log('✅ Successfully fetched property stats');
+
     return response.data;
   } catch (error) {
+    console.error('❌ Error fetching property statistics:', error);
+
+    // Enhanced error handling
+    if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {
+      throw {
+        message: 'Request timed out while fetching property statistics. Please try again.',
+        isTimeout: true,
+        originalError: error
+      };
+    }
+
+    if (error.response?.status === 500) {
+      throw {
+        message: 'Server error while fetching property statistics. Please try again in a moment.',
+        isServerError: true,
+        originalError: error
+      };
+    }
+
     throw error.response?.data || { message: 'Failed to fetch property statistics' };
   }
 };
@@ -23,9 +55,41 @@ export const getUserStats = async (filters = {}) => {
 // Get document statistics
 export const getDocumentStats = async (filters = {}) => {
   try {
-    const response = await api.get('/reports/documents', { params: filters });
+    // Use fast API for stats to improve dashboard loading performance
+    const apiInstance = filters.dashboard ? fastApi : api;
+
+    // Clean up params to avoid sending undefined values
+    const cleanParams = Object.fromEntries(
+      Object.entries(filters).filter(([_, value]) => value !== undefined && value !== null)
+    );
+
+    console.log('📋 Fetching document stats with params:', cleanParams);
+
+    const response = await apiInstance.get('/reports/documents', { params: cleanParams });
+
+    console.log('✅ Successfully fetched document stats');
+
     return response.data;
   } catch (error) {
+    console.error('❌ Error fetching document statistics:', error);
+
+    // Enhanced error handling
+    if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {
+      throw {
+        message: 'Request timed out while fetching document statistics. Please try again.',
+        isTimeout: true,
+        originalError: error
+      };
+    }
+
+    if (error.response?.status === 500) {
+      throw {
+        message: 'Server error while fetching document statistics. Please try again in a moment.',
+        isServerError: true,
+        originalError: error
+      };
+    }
+
     throw error.response?.data || { message: 'Failed to fetch document statistics' };
   }
 };

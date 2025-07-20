@@ -183,11 +183,47 @@ const LandOfficerDashboard = () => {
         });
         console.log('📦 Using cached stats data');
       } else {
-        // Fetch fresh data
-        const [propertyStats, documentStats] = await Promise.all([
-          getPropertyStats(),
-          getDocumentStats()
-        ]);
+        // Fetch fresh data with dashboard optimization and fallback
+        console.log('🔄 Loading fresh stats data with dashboard optimization...');
+
+        let propertyStats, documentStats;
+
+        try {
+          // Try with dashboard optimization first
+          [propertyStats, documentStats] = await Promise.all([
+            getPropertyStats({ dashboard: true }),
+            getDocumentStats({ dashboard: true })
+          ]);
+        } catch (dashboardError) {
+          console.warn('⚠️ Dashboard-optimized stats failed, falling back to regular stats:', dashboardError);
+
+          // Fallback to regular stats API
+          try {
+            [propertyStats, documentStats] = await Promise.all([
+              getPropertyStats(),
+              getDocumentStats()
+            ]);
+          } catch (fallbackError) {
+            console.error('❌ Both dashboard and regular stats failed:', fallbackError);
+
+            // Use default values if both fail
+            propertyStats = {
+              totalProperties: 0,
+              pendingProperties: 0,
+              approvedProperties: 0,
+              rejectedProperties: 0
+            };
+            documentStats = {
+              totalDocuments: 0,
+              pendingVerification: 0,
+              verifiedDocuments: 0,
+              rejectedDocuments: 0
+            };
+
+            // Show a non-intrusive warning
+            console.warn('📊 Using default stats values due to API errors');
+          }
+        }
 
         // Cache the results
         cachePropertyStats(propertyStats);
@@ -203,10 +239,28 @@ const LandOfficerDashboard = () => {
           verifiedDocuments: documentStats.verifiedDocuments || 0,
           rejectedDocuments: documentStats.rejectedDocuments || 0
         });
+
+        console.log('✅ Successfully loaded and cached stats data');
       }
     } catch (error) {
-      console.error('Error loading stats:', error);
-      toast.error('Failed to load statistics');
+      console.error('❌ Error loading stats:', error);
+
+      // Only show toast for non-timeout errors to avoid spam
+      if (!error.isTimeout && !error.isServerError) {
+        toast.error(error.message || 'Failed to load statistics');
+      }
+
+      // Set default stats to prevent blank dashboard
+      setStats({
+        totalProperties: 0,
+        pendingProperties: 0,
+        approvedProperties: 0,
+        rejectedProperties: 0,
+        totalDocuments: 0,
+        pendingDocuments: 0,
+        verifiedDocuments: 0,
+        rejectedDocuments: 0
+      });
     } finally {
       setStatsLoading(false);
       finishStatsLoad();
@@ -225,20 +279,45 @@ const LandOfficerDashboard = () => {
       if (cachedData) {
         setPendingApplications(cachedData);
         console.log('📦 Using cached pending applications data');
-      } else {
-        // Use dashboard parameter to limit results for better performance
-        const pendingAppsResponse = await getPendingProperties({ dashboard: true, limit: 10 });
-        cachePendingProperties(pendingAppsResponse || []);
-        setPendingApplications(pendingAppsResponse || []);
+        return;
       }
+
+      let pendingAppsResponse;
+
+      try {
+        // First try with dashboard parameter for optimized response
+        console.log('🔄 Attempting to load pending applications with dashboard API...');
+        pendingAppsResponse = await getPendingProperties({ dashboard: true, limit: 10 });
+      } catch (dashboardError) {
+        console.warn('⚠️ Dashboard API failed, falling back to regular API:', dashboardError);
+
+        // Fallback to regular API without dashboard parameter
+        try {
+          pendingAppsResponse = await getPendingProperties({ limit: 10 });
+          // If regular API returns paginated response, extract properties array
+          if (pendingAppsResponse?.properties) {
+            pendingAppsResponse = pendingAppsResponse.properties;
+          }
+        } catch (fallbackError) {
+          throw fallbackError; // Re-throw the fallback error
+        }
+      }
+
+      cachePendingProperties(pendingAppsResponse || []);
+      setPendingApplications(pendingAppsResponse || []);
+      console.log('✅ Successfully loaded pending applications:', pendingAppsResponse?.length || 0, 'items');
+
     } catch (error) {
-      console.error('Error loading pending applications:', error);
+      console.error('❌ Error loading pending applications:', error);
       setPendingAppsError(error);
 
-      // Enhanced error handling for timeouts
+      // Enhanced error handling for different error types
       if (error.isTimeout) {
         console.log('Pending applications request timed out, using empty array');
         // Don't show error toast for timeouts, just log and continue
+        setPendingApplications([]);
+      } else if (error.isServerError) {
+        console.log('Server error loading pending applications, using empty array');
         setPendingApplications([]);
       } else {
         toast.error(error.message || 'Failed to load pending applications');
@@ -262,20 +341,45 @@ const LandOfficerDashboard = () => {
       if (cachedData) {
         setPendingDocuments(cachedData);
         console.log('📦 Using cached pending documents data');
-      } else {
-        // Use dashboard parameter to limit results for better performance
-        const pendingDocsResponse = await getPendingDocuments({ dashboard: true, limit: 10 });
-        cachePendingDocuments(pendingDocsResponse || []);
-        setPendingDocuments(pendingDocsResponse || []);
+        return;
       }
+
+      let pendingDocsResponse;
+
+      try {
+        // First try with dashboard parameter for optimized response
+        console.log('🔄 Attempting to load pending documents with dashboard API...');
+        pendingDocsResponse = await getPendingDocuments({ dashboard: true, limit: 10 });
+      } catch (dashboardError) {
+        console.warn('⚠️ Dashboard API failed, falling back to regular API:', dashboardError);
+
+        // Fallback to regular API without dashboard parameter
+        try {
+          pendingDocsResponse = await getPendingDocuments({ limit: 10 });
+          // If regular API returns paginated response, extract documents array
+          if (pendingDocsResponse?.documents) {
+            pendingDocsResponse = pendingDocsResponse.documents;
+          }
+        } catch (fallbackError) {
+          throw fallbackError; // Re-throw the fallback error
+        }
+      }
+
+      cachePendingDocuments(pendingDocsResponse || []);
+      setPendingDocuments(pendingDocsResponse || []);
+      console.log('✅ Successfully loaded pending documents:', pendingDocsResponse?.length || 0, 'items');
+
     } catch (error) {
-      console.error('Error loading pending documents:', error);
+      console.error('❌ Error loading pending documents:', error);
       setPendingDocsError(error);
 
-      // Enhanced error handling for timeouts
+      // Enhanced error handling for different error types
       if (error.isTimeout) {
         console.log('Pending documents request timed out, using empty array');
         // Don't show error toast for timeouts, just log and continue
+        setPendingDocuments([]);
+      } else if (error.isServerError) {
+        console.log('Server error loading pending documents, using empty array');
         setPendingDocuments([]);
       } else {
         toast.error(error.message || 'Failed to load pending documents');

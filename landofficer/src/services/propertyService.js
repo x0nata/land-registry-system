@@ -75,9 +75,22 @@ export const getPendingProperties = async (params = {}) => {
   try {
     // Use dashboard API for better timeout handling when called from dashboard
     const apiInstance = params.dashboard ? dashboardApi : api;
-    const response = await apiInstance.get('/properties/pending', { params });
+
+    // Clean up params to avoid sending undefined values
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, value]) => value !== undefined && value !== null)
+    );
+
+    console.log('🏠 Fetching pending properties with params:', cleanParams);
+
+    const response = await apiInstance.get('/properties/pending', { params: cleanParams });
+
+    console.log('✅ Successfully fetched pending properties:', response.data?.length || response.data?.properties?.length || 0, 'items');
+
     return response.data;
   } catch (error) {
+    console.error('❌ Error fetching pending properties:', error);
+
     // Enhanced error handling for timeout issues
     if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {
       throw {
@@ -86,6 +99,16 @@ export const getPendingProperties = async (params = {}) => {
         originalError: error
       };
     }
+
+    // Handle 500 errors specifically
+    if (error.response?.status === 500) {
+      throw {
+        message: 'Server error while fetching pending properties. Please try again in a moment.',
+        isServerError: true,
+        originalError: error
+      };
+    }
+
     throw error.response?.data || { message: 'Failed to fetch pending properties' };
   }
 };
