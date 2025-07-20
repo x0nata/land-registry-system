@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import ApplicationLog from "../models/ApplicationLog.js";
 import Property from "../models/Property.js";
 import { validationResult } from "express-validator";
@@ -183,6 +184,13 @@ export const getRecentActivities = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
+    // Check database connection first
+    if (mongoose.connection.readyState !== 1) {
+      console.log("Database not connected, returning empty activities");
+      return res.status(200).json([]);
+    }
+
+    // Add timeout and error handling for the query
     const recentActivities = await ApplicationLog.find()
       .populate({
         path: "property",
@@ -200,17 +208,18 @@ export const getRecentActivities = async (req, res) => {
         options: { strictPopulate: false }
       })
       .limit(parseInt(limit))
-      .sort({ timestamp: -1 });
+      .sort({ timestamp: -1 })
+      .maxTimeMS(8000) // 8 second timeout
+      .lean(); // Use lean() for better performance
 
-    res.json(recentActivities);
+    res.json(recentActivities || []);
   } catch (error) {
     console.error("Error fetching recent activities:", error);
-    res
-      .status(500)
-      .json({
-        message: "Server error while fetching recent activities",
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
+    console.error("Error details:", error.message);
+    console.error("Error stack:", error.stack);
+
+    // Return empty array instead of error to prevent UI crashes
+    res.status(200).json([]);
   }
 };
 

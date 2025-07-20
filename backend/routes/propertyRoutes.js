@@ -17,6 +17,7 @@ import {
   markPropertyPaymentCompleted,
 } from "../controllers/propertyController.js";
 import { authenticate, isUser, isAdminOrLandOfficer } from "../middleware/auth.js";
+import { dashboardCache } from "../middleware/cache.js";
 
 const router = express.Router();
 
@@ -28,7 +29,7 @@ router.get("/", authenticate, isAdminOrLandOfficer, getAllProperties);
 // @route   GET /api/properties/pending
 // @desc    Get pending properties for review
 // @access  Private (Admin, Land Officer)
-router.get("/pending", authenticate, isAdminOrLandOfficer, getPendingProperties);
+router.get("/pending", authenticate, isAdminOrLandOfficer, dashboardCache, getPendingProperties);
 
 // @route   GET /api/properties/assigned
 // @desc    Get properties assigned to the current land officer

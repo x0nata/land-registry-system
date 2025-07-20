@@ -112,42 +112,6 @@ const About = () => {
         </div>
       </div>
 
-      {/* Team Section */}
-      <div className="max-w-4xl mx-auto mb-16">
-        <h2 className="text-3xl font-bold text-center mb-8">Our Leadership Team</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-md text-center">
-            <div className="w-24 h-24 bg-gray-300 rounded-full mx-auto mb-4 overflow-hidden">
-              <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="CEO" className="w-full h-full object-cover" />
-            </div>
-            <h3 className="text-xl font-semibold mb-1">David Johnson</h3>
-            <p className="text-gray-500 mb-3">Chief Executive Officer</p>
-            <p className="text-gray-700 text-sm">
-              With over 20 years of experience in land administration and public service.
-            </p>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow-md text-center">
-            <div className="w-24 h-24 bg-gray-300 rounded-full mx-auto mb-4 overflow-hidden">
-              <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="CTO" className="w-full h-full object-cover" />
-            </div>
-            <h3 className="text-xl font-semibold mb-1">Sarah Chen</h3>
-            <p className="text-gray-500 mb-3">Chief Technology Officer</p>
-            <p className="text-gray-700 text-sm">
-              Leading our digital transformation with expertise in secure government systems.
-            </p>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow-md text-center">
-            <div className="w-24 h-24 bg-gray-300 rounded-full mx-auto mb-4 overflow-hidden">
-              <img src="https://randomuser.me/api/portraits/men/67.jpg" alt="COO" className="w-full h-full object-cover" />
-            </div>
-            <h3 className="text-xl font-semibold mb-1">Michael Okafor</h3>
-            <p className="text-gray-500 mb-3">Chief Operations Officer</p>
-            <p className="text-gray-700 text-sm">
-              Ensuring efficient service delivery and continuous process improvement.
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* CTA Section */}
       <div className="bg-primary text-white rounded-lg p-8 text-center">
@@ -157,9 +121,6 @@ const About = () => {
           we're here to help you navigate the process with ease.
         </p>
         <div className="flex flex-wrap justify-center gap-4">
-          <Link to="/register" className="bg-white text-primary px-6 py-3 rounded-md font-medium hover:bg-gray-100 transition-colors">
-            Register Now
-          </Link>
           <Link to="/contact" className="bg-transparent border-2 border-white text-white px-6 py-3 rounded-md font-medium hover:bg-white hover:text-primary transition-colors">
             Contact Us
           </Link>

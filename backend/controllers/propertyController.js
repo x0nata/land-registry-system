@@ -301,16 +301,60 @@ export const getAllProperties = async (req, res) => {
 // @access  Private (Admin, Land Officer)
 export const getPendingProperties = async (req, res) => {
   try {
+    const {
+      page = 1,
+      limit = 10,
+      dashboard = false
+    } = req.query;
+
+    // Check database connection first
+    if (mongoose.connection.readyState !== 1) {
+      console.log("Database not connected, returning empty pending properties");
+      return res.status(200).json(dashboard === 'true' ? [] : { properties: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } });
+    }
+
+    // For dashboard, return fewer items with optimized query
+    const actualLimit = dashboard === 'true' ? 5 : parseInt(limit);
+    const skip = dashboard === 'true' ? 0 : (parseInt(page) - 1) * parseInt(limit);
+
     const pendingProperties = await Property.find({ status: "pending" })
       .populate("owner", "fullName email nationalId")
-      .sort({ registrationDate: 1 });
+      .skip(skip)
+      .limit(actualLimit)
+      .sort({ registrationDate: 1 })
+      .maxTimeMS(8000) // 8 second timeout
+      .lean(); // Use lean() for better performance
 
-    res.json(pendingProperties);
+    if (dashboard === 'true') {
+      // For dashboard, return simple array
+      res.json(pendingProperties || []);
+    } else {
+      // For full page, return with pagination
+      const total = await Property.countDocuments({ status: "pending" }).maxTimeMS(5000);
+      res.json({
+        properties: pendingProperties || [],
+        pagination: {
+          total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(total / parseInt(limit)),
+        },
+      });
+    }
   } catch (error) {
     console.error("Error fetching pending properties:", error);
-    res
-      .status(500)
-      .json({ message: "Server error while fetching pending properties" });
+    console.error("Error details:", error.message);
+
+    // Return empty result instead of error to prevent UI crashes
+    const { dashboard = false } = req.query;
+    if (dashboard === 'true') {
+      res.status(200).json([]);
+    } else {
+      res.status(200).json({
+        properties: [],
+        pagination: { total: 0, page: 1, limit: 10, pages: 0 }
+      });
+    }
   }
 };
 

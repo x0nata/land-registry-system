@@ -16,6 +16,7 @@ import {
 } from "../controllers/documentController.js";
 import { authenticate, isUser, isAdminOrLandOfficer } from "../middleware/auth.js";
 import { upload } from "../config/multer.js";
+import { dashboardCache } from "../middleware/cache.js";
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.get("/", authenticate, isAdminOrLandOfficer, getAllDocuments);
 // @route   GET /api/documents/pending
 // @desc    Get all pending documents for verification
 // @access  Private (Admin, Land Officer)
-router.get("/pending", authenticate, isAdminOrLandOfficer, getPendingDocuments);
+router.get("/pending", authenticate, isAdminOrLandOfficer, dashboardCache, getPendingDocuments);
 
 // @route   POST /api/documents
 // @desc    Create a document record (for testing)

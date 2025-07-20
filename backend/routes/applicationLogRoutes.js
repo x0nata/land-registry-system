@@ -10,6 +10,7 @@ import {
   getApplicationStats,
 } from "../controllers/applicationLogController.js";
 import { authenticate, isUser, isAdminOrLandOfficer } from "../middleware/auth.js";
+import { recentActivitiesCache } from "../middleware/cache.js";
 
 const router = express.Router();
 
@@ -31,12 +32,12 @@ router.get("/", authenticate, isAdminOrLandOfficer, getAllLogs);
 // @route   GET /api/logs/recent
 // @desc    Get recent activities
 // @access  Private (Admin, Land Officer)
-router.get("/recent", authenticate, isAdminOrLandOfficer, getRecentActivities);
+router.get("/recent", authenticate, isAdminOrLandOfficer, recentActivitiesCache, getRecentActivities);
 
 // @route   GET /api/logs/user/recent
 // @desc    Get recent activities for the current user
 // @access  Private (User)
-router.get("/user/recent", authenticate, getUserRecentActivities);
+router.get("/user/recent", authenticate, recentActivitiesCache, getUserRecentActivities);
 
 // @route   GET /api/logs/stats
 // @desc    Get application statistics
