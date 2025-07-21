@@ -10,18 +10,30 @@ import NotificationService from "../services/notificationService.js";
 // @access  Private (User)
 export const submitDispute = async (req, res) => {
   try {
+    console.log('Dispute submission started:', {
+      userId: req.user?._id,
+      userRole: req.user?.role,
+      body: req.body
+    });
+
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
     const { property, disputeType, title, description, evidence } = req.body;
 
-    // Verify that the property exists
+    // Verify that the property exists and user owns it
     const propertyExists = await Property.findById(property);
     if (!propertyExists) {
       return res.status(404).json({ message: "Property not found" });
+    }
+
+    // Check if the user owns this property
+    if (propertyExists.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "You can only submit disputes for your own properties" });
     }
 
     // Check if there's already an active dispute for this property
@@ -93,7 +105,11 @@ export const submitDispute = async (req, res) => {
     res.status(201).json(populatedDispute);
   } catch (error) {
     console.error("Error submitting dispute:", error);
-    res.status(500).json({ message: "Server error while submitting dispute" });
+    console.error("Error stack:", error.stack);
+    res.status(500).json({
+      message: "Server error while submitting dispute",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

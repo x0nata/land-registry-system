@@ -16,6 +16,13 @@ import { authenticate, isUser, isAdminOrLandOfficer, isAdmin } from "../middlewa
 
 const router = express.Router();
 
+// @route   GET /api/disputes/test
+// @desc    Test dispute routes
+// @access  Public
+router.get("/test", (req, res) => {
+  res.json({ message: "Dispute routes are working", timestamp: new Date().toISOString() });
+});
+
 // @route   POST /api/disputes
 // @desc    Submit a new dispute
 // @access  Private (User)
@@ -23,7 +30,6 @@ router.post(
   "/",
   [
     authenticate,
-    isUser,
     check("property", "Property ID is required").isMongoId(),
     check("disputeType", "Dispute type is required").isIn([
       "ownership_dispute",
