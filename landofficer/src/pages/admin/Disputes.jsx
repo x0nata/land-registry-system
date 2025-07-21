@@ -33,6 +33,17 @@ const AdminDisputes = () => {
   const [disputes, setDisputes] = useState([]);
   const [landOfficers, setLandOfficers] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Helper function to format location object
+  const formatLocation = (location) => {
+    if (!location || typeof location !== 'object') return 'N/A';
+
+    const parts = [];
+    if (location.kebele) parts.push(location.kebele);
+    if (location.subCity) parts.push(location.subCity);
+
+    return parts.length > 0 ? parts.join(', ') : 'N/A';
+  };
   const [pagination, setPagination] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -303,7 +314,7 @@ const AdminDisputes = () => {
                             {dispute.property?.plotNumber || 'N/A'}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {dispute.property?.location || 'N/A'}
+                            {formatLocation(dispute.property?.location)}
                           </div>
                         </div>
                       </div>
