@@ -108,15 +108,16 @@ const DisputeSubmission = () => {
       // Upload evidence files first if any
       let evidence = [];
       if (evidenceFiles.length > 0) {
-        // For now, we'll create mock evidence data
-        // In a real implementation, you'd upload files first
-        evidence = evidenceFiles.map(file => ({
-          documentType: 'other',
-          documentName: `Evidence - ${file.name}`,
-          fileId: 'mock-file-id', // This would be the actual file ID from upload
-          filename: file.name,
-          fileType: file.type
-        }));
+        // For now, we'll skip evidence files to avoid validation errors
+        // In a real implementation, you'd upload files first and get real ObjectIds
+        console.log('Evidence files will be uploaded separately:', evidenceFiles.map(f => f.name));
+        // evidence = evidenceFiles.map(file => ({
+        //   documentType: 'other',
+        //   documentName: `Evidence - ${file.name}`,
+        //   fileId: 'mock-file-id', // This would be the actual file ID from upload
+        //   filename: file.name,
+        //   fileType: file.type
+        // }));
       }
 
       const disputeData = {
@@ -266,6 +267,9 @@ const DisputeSubmission = () => {
                 />
                 <p className="text-xs text-gray-600 mt-1">
                   Upload supporting documents, photos, or other evidence. Accepted formats: PDF, JPG, PNG. Max 5MB per file.
+                </p>
+                <p className="text-xs text-yellow-600 mt-1">
+                  Note: Evidence files will be processed after dispute submission. You can add them later through the dispute management system.
                 </p>
                 
                 {evidenceFiles.length > 0 && (

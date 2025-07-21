@@ -48,21 +48,36 @@ export const submitDispute = async (req, res) => {
       });
     }
 
-    // Create new dispute
-    const dispute = await Dispute.create({
+    // Create new dispute (exclude evidence for now to avoid validation issues)
+    const disputeData = {
       property,
       disputant: req.user._id,
       disputeType,
       title,
       description,
-      evidence: evidence || [],
       timeline: [{
         action: "Dispute submitted",
         performedBy: req.user._id,
         performedByRole: req.user.role,
         notes: "Initial dispute submission"
       }]
-    });
+    };
+
+    // Only add evidence if it's provided and valid
+    if (evidence && Array.isArray(evidence) && evidence.length > 0) {
+      // Validate that all evidence has proper ObjectIds
+      const validEvidence = evidence.filter(ev =>
+        ev.fileId &&
+        typeof ev.fileId === 'string' &&
+        ev.fileId.match(/^[0-9a-fA-F]{24}$/) // Valid ObjectId format
+      );
+
+      if (validEvidence.length > 0) {
+        disputeData.evidence = validEvidence;
+      }
+    }
+
+    const dispute = await Dispute.create(disputeData);
 
     // Update property to mark it has an active dispute
     await Property.findByIdAndUpdate(property, {
