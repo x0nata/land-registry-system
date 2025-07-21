@@ -12,16 +12,15 @@ const api = axios.create({
     'Content-Type': 'application/json'
   },
   withCredentials: true, // Enable sending cookies
-  timeout: 30000, // 30 seconds default timeout
-  // Retry configuration
-  retry: 3,
-  retryDelay: 1000, // Start with 1 second delay
+  timeout: 15000, // 15 seconds default timeout (reduced from 30s)
+  // Optimized retry configuration for faster dashboard loading
+  retry: 2, // Reduced from 3 to 2 retries
+  retryDelay: 300, // Reduced from 1000ms to 300ms initial delay
   retryCondition: (error) => {
-    // Retry on network errors, timeouts, and 5xx server errors
-    return !error.response ||
-           error.code === 'ECONNABORTED' ||
-           error.code === 'NETWORK_ERROR' ||
-           (error.response && error.response.status >= 500);
+    // Only retry on specific network errors and 5xx server errors
+    // Don't retry on 4xx client errors or timeouts to avoid long delays
+    return error.code === 'NETWORK_ERROR' ||
+           (error.response && error.response.status >= 500 && error.response.status < 600);
   }
 });
 
@@ -72,10 +71,11 @@ const retryRequest = async (error) => {
   // Increment retry count
   config.__retryCount += 1;
 
-  // Calculate delay with exponential backoff
-  const delay = api.defaults.retryDelay * Math.pow(2, config.__retryCount - 1);
+  // Calculate delay with optimized exponential backoff (much shorter delays)
+  const baseDelay = config.retryDelay || api.defaults.retryDelay;
+  const delay = Math.min(baseDelay * Math.pow(1.5, config.__retryCount - 1), 1000); // Cap at 1 second
 
-  console.log(`🔄 Retrying request (attempt ${config.__retryCount}/${api.defaults.retry}) after ${delay}ms delay`);
+  console.log(`🔄 Retrying request (attempt ${config.__retryCount}/${config.retry || api.defaults.retry}) after ${delay}ms delay`);
 
   // Wait for the delay
   await new Promise(resolve => setTimeout(resolve, delay));
@@ -124,9 +124,9 @@ api.interceptors.response.use(
 // Create specialized API instances for different use cases
 export const dashboardApi = axios.create({
   ...api.defaults,
-  timeout: 45000, // 45 seconds for dashboard calls (they can be slower)
-  retry: 2, // Fewer retries for dashboard to avoid long waits
-  retryDelay: 2000 // Longer initial delay for dashboard calls
+  timeout: 10000, // Reduced to 10 seconds for faster dashboard loading
+  retry: 1, // Only 1 retry for dashboard to minimize delays
+  retryDelay: 200 // Very short delay for dashboard calls
 });
 
 // Apply the same interceptors to dashboard API
@@ -136,9 +136,9 @@ dashboardApi.interceptors.response = api.interceptors.response;
 // Create a fast API instance for critical calls
 export const fastApi = axios.create({
   ...api.defaults,
-  timeout: 15000, // 15 seconds for fast calls
-  retry: 3,
-  retryDelay: 500 // Shorter delay for fast calls
+  timeout: 8000, // Reduced to 8 seconds for fast calls
+  retry: 1, // Only 1 retry for fast calls
+  retryDelay: 100 // Very short delay for fast calls
 });
 
 // Apply the same interceptors to fast API
