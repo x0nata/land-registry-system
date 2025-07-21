@@ -13,7 +13,8 @@ import {
   DocumentTextIcon,
   HomeIcon,
   CurrencyDollarIcon,
-  ClockIcon
+  ClockIcon,
+  ScaleIcon
 } from '@heroicons/react/24/outline';
 
 const PropertyDetails = () => {
@@ -281,6 +282,13 @@ const PropertyDetails = () => {
                 showAmount={property.paymentCompleted}
               />
             )}
+            <Link
+              to={`/disputes/submit?property=${property._id}`}
+              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 flex items-center"
+            >
+              <ScaleIcon className="h-4 w-4 mr-2" />
+              Submit Dispute
+            </Link>
             <button
               onClick={() => navigate('/dashboard/user')}
               className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"

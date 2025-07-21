@@ -11,6 +11,7 @@ import {
   getUserStats,
 } from "../controllers/userController.js";
 import { authenticate, isAdmin } from "../middleware/auth.js";
+import { statsCache } from "../middleware/cache.js";
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.get("/land-officers", authenticate, isAdmin, getLandOfficers);
 // @route   GET /api/users/stats
 // @desc    Get user statistics
 // @access  Admin
-router.get("/stats", authenticate, isAdmin, getUserStats);
+router.get("/stats", authenticate, isAdmin, statsCache, getUserStats);
 
 // @route   GET /api/users/:id
 // @desc    Get user by ID

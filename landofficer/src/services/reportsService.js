@@ -3,17 +3,23 @@ import api, { dashboardApi, fastApi } from './api';
 // Get property statistics
 export const getPropertyStats = async (filters = {}) => {
   try {
-    // Use fast API for stats to improve dashboard loading performance
-    const apiInstance = filters.dashboard ? fastApi : api;
+    // Use regular API for stats to avoid timeout issues with large datasets
+    // fastApi (3s timeout) was causing timeouts, use regular API (15s timeout) instead
+    const apiInstance = api;
 
     // Clean up params to avoid sending undefined values
     const cleanParams = Object.fromEntries(
       Object.entries(filters).filter(([_, value]) => value !== undefined && value !== null)
     );
 
+    // Add cache busting parameter to force fresh data
+    cleanParams.cb = Date.now();
+
     console.log('📊 Fetching property stats with params:', cleanParams);
 
-    const response = await apiInstance.get('/reports/properties', { params: cleanParams });
+    const response = await apiInstance.get('/reports/properties', {
+      params: cleanParams
+    });
 
     console.log('✅ Successfully fetched property stats');
 
@@ -45,7 +51,11 @@ export const getPropertyStats = async (filters = {}) => {
 // Get user statistics
 export const getUserStats = async (filters = {}) => {
   try {
-    const response = await api.get('/reports/users', { params: filters });
+    // Add cache busting parameter to ensure fresh data
+    const params = { ...filters, cb: Date.now() };
+    const response = await api.get('/reports/users', {
+      params
+    });
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to fetch user statistics' };
@@ -55,8 +65,9 @@ export const getUserStats = async (filters = {}) => {
 // Get document statistics
 export const getDocumentStats = async (filters = {}) => {
   try {
-    // Use fast API for stats to improve dashboard loading performance
-    const apiInstance = filters.dashboard ? fastApi : api;
+    // Use regular API for stats to avoid timeout issues with large datasets
+    // fastApi (3s timeout) was causing timeouts, use regular API (15s timeout) instead
+    const apiInstance = api;
 
     // Clean up params to avoid sending undefined values
     const cleanParams = Object.fromEntries(

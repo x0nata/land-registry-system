@@ -42,52 +42,36 @@ export const getPropertyStats = async (req, res) => {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Use Promise.all for parallel execution with shorter timeouts
-    const [
+    // Get property statistics with timeout
+    const totalProperties = await Property.countDocuments().maxTimeMS(10000);
+    const pendingProperties = await Property.countDocuments({ status: 'pending' }).maxTimeMS(10000);
+    const approvedProperties = await Property.countDocuments({ status: 'approved' }).maxTimeMS(10000);
+    const rejectedProperties = await Property.countDocuments({ status: 'rejected' }).maxTimeMS(10000);
+    const newProperties = await Property.countDocuments({
+      createdAt: { $gte: startDate }
+    }).maxTimeMS(10000);
+
+    // Get properties by type with timeout
+    const propertiesByType = await Property.aggregate([
+      {
+        $group: {
+          _id: "$propertyType",
+          count: { $sum: 1 }
+        }
+      }
+    ]).maxTimeMS(10000);
+
+    res.json({
       totalProperties,
       pendingProperties,
       approvedProperties,
       rejectedProperties,
       newProperties,
-      propertiesByType
-    ] = await Promise.all([
-      Property.countDocuments().maxTimeMS(5000),
-      Property.countDocuments({ status: 'pending' }).maxTimeMS(5000),
-      Property.countDocuments({ status: 'approved' }).maxTimeMS(5000),
-      Property.countDocuments({ status: 'rejected' }).maxTimeMS(5000),
-      Property.countDocuments({
-        createdAt: { $gte: startDate }
-      }).maxTimeMS(5000),
-      Property.aggregate([
-        {
-          $group: {
-            _id: "$propertyType",
-            count: { $sum: 1 }
-          }
-        },
-        {
-          $project: {
-            type: '$_id',
-            count: 1,
-            _id: 0
-          }
-        }
-      ]).maxTimeMS(5000)
-    ]);
-
-    res.json({
-      totalProperties: totalProperties || 0,
-      pendingProperties: pendingProperties || 0,
-      approvedProperties: approvedProperties || 0,
-      rejectedProperties: rejectedProperties || 0,
-      newProperties: newProperties || 0,
-      propertiesByType: propertiesByType || [],
+      propertiesByType,
       timeframe
     });
   } catch (error) {
     console.error("Error fetching property statistics:", error);
-    console.error("Error details:", error.message);
-    console.error("Error stack:", error.stack);
 
     // Return default stats instead of error to prevent UI crashes
     res.status(200).json({

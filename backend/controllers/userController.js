@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/User.js";
 import { validationResult } from "express-validator";
 
@@ -267,20 +268,35 @@ export const getLandOfficers = async (req, res) => {
 // @access  Admin
 export const getUserStats = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const totalAdmins = await User.countDocuments({ role: "admin" });
-    const totalLandOfficers = await User.countDocuments({
-      role: "landOfficer",
-    });
-    const totalRegularUsers = await User.countDocuments({ role: "user" });
+    // Check database connection first
+    if (mongoose.connection.readyState !== 1) {
+      console.log("Database not connected, returning default user stats");
+      return res.status(200).json({
+        totalUsers: 0,
+        totalAdmins: 0,
+        totalLandOfficers: 0,
+        totalRegularUsers: 0,
+        newUsers: 0,
+        message: "Database connection unavailable, showing default values"
+      });
+    }
 
-    // Get new users in the last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const newUsers = await User.countDocuments({
-      createdAt: { $gte: thirtyDaysAgo },
-    });
+    // Use Promise.all with timeout for parallel execution
+    const [
+      totalUsers,
+      totalAdmins,
+      totalLandOfficers,
+      totalRegularUsers,
+      newUsers
+    ] = await Promise.all([
+      User.countDocuments().maxTimeMS(5000),
+      User.countDocuments({ role: "admin" }).maxTimeMS(5000),
+      User.countDocuments({ role: "landOfficer" }).maxTimeMS(5000),
+      User.countDocuments({ role: "user" }).maxTimeMS(5000),
+      User.countDocuments({
+        createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+      }).maxTimeMS(5000)
+    ]);
 
     res.json({
       totalUsers,
@@ -291,8 +307,16 @@ export const getUserStats = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching user statistics:", error);
-    res
-      .status(500)
-      .json({ message: "Server error while fetching user statistics" });
+    console.error("Error details:", error.message);
+
+    // Return default stats instead of error to prevent UI crashes
+    res.status(200).json({
+      totalUsers: 0,
+      totalAdmins: 0,
+      totalLandOfficers: 0,
+      totalRegularUsers: 0,
+      newUsers: 0,
+      message: "Unable to fetch user statistics due to database connectivity issues"
+    });
   }
 };

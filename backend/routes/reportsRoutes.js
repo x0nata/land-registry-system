@@ -11,14 +11,13 @@ import {
   getPerformanceMetrics,
 } from "../controllers/reportsController.js";
 import { authenticate, isAdmin, isAdminOrLandOfficer } from "../middleware/auth.js";
-import { statsCache } from "../middleware/cache.js";
 
 const router = express.Router();
 
 // @route   GET /api/reports/properties
 // @desc    Get property statistics
 // @access  Admin, Land Officer
-router.get("/properties", authenticate, isAdminOrLandOfficer, statsCache, getPropertyStats);
+router.get("/properties", authenticate, isAdminOrLandOfficer, getPropertyStats);
 
 // @route   GET /api/reports/users
 // @desc    Get user statistics
@@ -28,12 +27,12 @@ router.get("/users", authenticate, isAdmin, getUserStats);
 // @route   GET /api/reports/documents
 // @desc    Get document statistics
 // @access  Admin, Land Officer
-router.get("/documents", authenticate, isAdminOrLandOfficer, statsCache, getDocumentStats);
+router.get("/documents", authenticate, isAdminOrLandOfficer, getDocumentStats);
 
 // @route   GET /api/reports/payments
 // @desc    Get payment statistics
 // @access  Admin, Land Officer
-router.get("/payments", authenticate, isAdminOrLandOfficer, statsCache, getPaymentStats);
+router.get("/payments", authenticate, isAdminOrLandOfficer, getPaymentStats);
 
 // @route   GET /api/reports/applications
 // @desc    Generate application statistics report

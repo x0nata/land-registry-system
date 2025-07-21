@@ -7,7 +7,8 @@ import {
   ArrowRightCircleIcon,
   ClockIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ScaleIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -281,13 +282,22 @@ const Properties = () => {
                         <span className="text-xs text-gray-500">No documents uploaded</span>
                       )}
                     </div>
-                    <Link
-                      to={`/property/${property._id || property.id}`}
-                      className="text-primary hover:text-primary-dark flex items-center"
-                    >
-                      <DocumentTextIcon className="h-4 w-4 mr-1" />
-                      View Details
-                    </Link>
+                    <div className="flex space-x-2">
+                      <Link
+                        to={`/disputes/submit?property=${property._id || property.id}`}
+                        className="text-yellow-600 hover:text-yellow-700 flex items-center text-sm"
+                      >
+                        <ScaleIcon className="h-4 w-4 mr-1" />
+                        Dispute
+                      </Link>
+                      <Link
+                        to={`/property/${property._id || property.id}`}
+                        className="text-primary hover:text-primary-dark flex items-center"
+                      >
+                        <DocumentTextIcon className="h-4 w-4 mr-1" />
+                        View Details
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>

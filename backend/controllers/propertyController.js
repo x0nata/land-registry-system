@@ -91,12 +91,8 @@ export const getPropertyById = async (req, res) => {
       return res.status(404).json({ message: "Property not found" });
     }
 
-    // Check if user is authorized to view this property
-    // Allow property owner, admin, and land officers to access
-    if (
-      property.owner._id.toString() !== req.user._id.toString() &&
-      !["admin", "landOfficer"].includes(req.user.role)
-    ) {
+    // Check if user is authorized to view this property (only owner can access)
+    if (property.owner._id.toString() !== req.user._id.toString()) {
       return res
         .status(403)
         .json({ message: "Not authorized to view this property" });
@@ -305,60 +301,16 @@ export const getAllProperties = async (req, res) => {
 // @access  Private (Admin, Land Officer)
 export const getPendingProperties = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      dashboard = false
-    } = req.query;
-
-    // Check database connection first
-    if (mongoose.connection.readyState !== 1) {
-      console.log("Database not connected, returning empty pending properties");
-      return res.status(200).json(dashboard === 'true' ? [] : { properties: [], pagination: { total: 0, page: 1, limit: 10, pages: 0 } });
-    }
-
-    // For dashboard, return fewer items with optimized query
-    const actualLimit = dashboard === 'true' ? 5 : parseInt(limit);
-    const skip = dashboard === 'true' ? 0 : (parseInt(page) - 1) * parseInt(limit);
-
     const pendingProperties = await Property.find({ status: "pending" })
       .populate("owner", "fullName email nationalId")
-      .skip(skip)
-      .limit(actualLimit)
-      .sort({ registrationDate: 1 })
-      .maxTimeMS(8000) // 8 second timeout
-      .lean(); // Use lean() for better performance
+      .sort({ registrationDate: 1 });
 
-    if (dashboard === 'true') {
-      // For dashboard, return simple array
-      res.json(pendingProperties || []);
-    } else {
-      // For full page, return with pagination
-      const total = await Property.countDocuments({ status: "pending" }).maxTimeMS(5000);
-      res.json({
-        properties: pendingProperties || [],
-        pagination: {
-          total,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          pages: Math.ceil(total / parseInt(limit)),
-        },
-      });
-    }
+    res.json(pendingProperties);
   } catch (error) {
     console.error("Error fetching pending properties:", error);
-    console.error("Error details:", error.message);
-
-    // Return empty result instead of error to prevent UI crashes
-    const { dashboard = false } = req.query;
-    if (dashboard === 'true') {
-      res.status(200).json([]);
-    } else {
-      res.status(200).json({
-        properties: [],
-        pagination: { total: 0, page: 1, limit: 10, pages: 0 }
-      });
-    }
+    res
+      .status(500)
+      .json({ message: "Server error while fetching pending properties" });
   }
 };
 

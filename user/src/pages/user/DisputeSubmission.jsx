@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { toast } from 'react-toastify';
@@ -9,6 +9,8 @@ import { uploadDocument } from '../../services/documentService';
 
 const DisputeSubmission = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preselectedPropertyId = searchParams.get('property');
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [evidenceFiles, setEvidenceFiles] = useState([]);
@@ -163,7 +165,7 @@ const DisputeSubmission = () => {
 
         <Formik
           initialValues={{
-            property: '',
+            property: preselectedPropertyId || '',
             disputeType: '',
             title: '',
             description: ''

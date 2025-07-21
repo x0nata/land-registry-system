@@ -258,6 +258,131 @@ class NotificationService {
   }
 
   /**
+   * Send dispute submitted notification to admins/land officers
+   * @param {Object} dispute - Dispute object
+   * @param {Object} property - Property object
+   * @param {Object} user - User object (disputant)
+   */
+  static async sendDisputeSubmittedNotification(dispute, property, user) {
+    try {
+      const notification = {
+        type: 'dispute_submitted',
+        title: 'New Dispute Submitted',
+        message: `A new dispute has been submitted for property ${property.plotNumber} by ${user.fullName}. Dispute type: ${dispute.disputeType.replace('_', ' ')}. Please review and take appropriate action.`,
+        userId: null, // Will be set for each admin/land officer
+        propertyId: property._id,
+        disputeId: dispute._id,
+        priority: 'high',
+        actionRequired: true,
+        actionUrl: `/admin/disputes/${dispute._id}`,
+        metadata: {
+          disputeType: dispute.disputeType,
+          disputeTitle: dispute.title,
+          disputantName: user.fullName,
+          disputantEmail: user.email,
+          propertyPlotNumber: property.plotNumber,
+          propertyLocation: property.location
+        }
+      };
+
+      // Send notification to all admins and land officers
+      // In a real implementation, you would fetch admin/land officer user IDs
+      // and send individual notifications
+      await this.createNotification(notification);
+
+      console.log('📧 Dispute notification sent to administrators');
+    } catch (error) {
+      console.error('Error sending dispute notification:', error);
+    }
+  }
+
+  /**
+   * Send dispute status update notification to disputant
+   * @param {Object} dispute - Dispute object
+   * @param {Object} property - Property object
+   * @param {Object} user - User object (disputant)
+   * @param {string} newStatus - New dispute status
+   * @param {string} notes - Status update notes
+   */
+  static async sendDisputeStatusUpdateNotification(dispute, property, user, newStatus, notes) {
+    try {
+      const statusMessages = {
+        'under_review': 'Your dispute is now under review by our team.',
+        'investigation': 'Your dispute is being investigated. We may contact you for additional information.',
+        'mediation': 'Your dispute has been referred to mediation.',
+        'resolved': 'Your dispute has been resolved.',
+        'dismissed': 'Your dispute has been dismissed.',
+        'withdrawn': 'Your dispute has been withdrawn.'
+      };
+
+      const notification = {
+        type: 'dispute_status_update',
+        title: 'Dispute Status Updated',
+        message: `Your dispute for property ${property.plotNumber} has been updated to "${newStatus.replace('_', ' ')}". ${statusMessages[newStatus] || ''} ${notes ? `Notes: ${notes}` : ''}`,
+        userId: user._id,
+        propertyId: property._id,
+        disputeId: dispute._id,
+        priority: newStatus === 'resolved' || newStatus === 'dismissed' ? 'medium' : 'high',
+        actionRequired: newStatus === 'investigation',
+        actionUrl: `/disputes/${dispute._id}`,
+        metadata: {
+          disputeType: dispute.disputeType,
+          disputeTitle: dispute.title,
+          newStatus,
+          statusNotes: notes,
+          propertyPlotNumber: property.plotNumber
+        }
+      };
+
+      await this.createNotification(notification);
+    } catch (error) {
+      console.error('Error sending dispute status update notification:', error);
+    }
+  }
+
+  /**
+   * Send dispute resolved notification to disputant
+   * @param {Object} dispute - Dispute object
+   * @param {Object} property - Property object
+   * @param {Object} user - User object (disputant)
+   * @param {string} decision - Resolution decision
+   * @param {string} resolutionNotes - Resolution notes
+   */
+  static async sendDisputeResolvedNotification(dispute, property, user, decision, resolutionNotes) {
+    try {
+      const decisionMessages = {
+        'in_favor_of_disputant': 'The decision has been made in your favor.',
+        'in_favor_of_respondent': 'The decision has been made in favor of the respondent.',
+        'compromise': 'A compromise solution has been reached.',
+        'dismissed': 'Your dispute has been dismissed.'
+      };
+
+      const notification = {
+        type: 'dispute_resolved',
+        title: 'Dispute Resolved',
+        message: `Your dispute for property ${property.plotNumber} has been resolved. ${decisionMessages[decision] || ''} Resolution: ${resolutionNotes}`,
+        userId: user._id,
+        propertyId: property._id,
+        disputeId: dispute._id,
+        priority: 'high',
+        actionRequired: false,
+        actionUrl: `/disputes/${dispute._id}`,
+        metadata: {
+          disputeType: dispute.disputeType,
+          disputeTitle: dispute.title,
+          decision,
+          resolutionNotes,
+          propertyPlotNumber: property.plotNumber
+        }
+      };
+
+      await this.createNotification(notification);
+    } catch (error) {
+      console.error('Error sending dispute resolved notification:', error);
+    }
+  }
+
+  /**
    * Create a notification record (placeholder for actual notification system)
    * In a real implementation, this would integrate with email, SMS, or push notification services
    * @param {Object} notificationData - Notification data

@@ -39,6 +39,7 @@ import AdminProperties from './pages/admin/Properties';
 import AdminReports from './pages/admin/Reports';
 import AdminSettings from './pages/admin/Settings';
 import AdminPayments from './pages/admin/Payments';
+import AdminDisputes from './pages/admin/Disputes';
 
 // Land Officer Pages
 import PropertyVerification from './pages/landOfficer/PropertyVerification';
@@ -267,6 +268,14 @@ function App() {
             element={
               <DashboardLayout>
                 <AdminPayments />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/admin/disputes"
+            element={
+              <DashboardLayout>
+                <AdminDisputes />
               </DashboardLayout>
             }
           />

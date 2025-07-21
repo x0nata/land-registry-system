@@ -142,21 +142,13 @@ const propertySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Add indexes for faster queries
+// Add index for faster queries
 // Note: plotNumber already has a unique index from the schema definition
 propertySchema.index({ owner: 1 });
 propertySchema.index({ status: 1 });
 propertySchema.index({ isTransferred: 1 });
 propertySchema.index({ hasActiveDispute: 1 });
 propertySchema.index({ "ownershipHistory.owner": 1 });
-
-// Compound indexes for common query patterns
-propertySchema.index({ status: 1, registrationDate: -1 }); // For pending properties sorted by date
-propertySchema.index({ owner: 1, status: 1 }); // For user's properties by status
-propertySchema.index({ propertyType: 1, status: 1 }); // For filtering by type and status
-propertySchema.index({ 'location.subCity': 1, 'location.kebele': 1 }); // For location-based queries
-propertySchema.index({ registrationDate: -1 }); // For sorting by registration date
-propertySchema.index({ createdAt: -1 }); // For time-based queries
 
 const Property = mongoose.model("Property", propertySchema);
 

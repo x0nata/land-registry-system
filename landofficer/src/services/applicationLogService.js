@@ -1,4 +1,4 @@
-import api, { dashboardApi, fastApi } from './api';
+import api, { dashboardApi, fastApi, recentActivitiesApi } from './api';
 
 // Get application logs for a property
 export const getPropertyLogs = async (propertyId) => {
@@ -43,8 +43,9 @@ export const addComment = async (propertyId, comment) => {
 // Get recent activities (admin/land officer only)
 export const getRecentActivities = async (params = {}) => {
   try {
-    // Use dashboard API for better timeout handling when called from dashboard
-    const apiInstance = params.dashboard ? dashboardApi : api;
+    // Use specialized recent activities API for better timeout handling with large datasets
+    // Fall back to dashboard API for dashboard calls, or regular API for other calls
+    const apiInstance = params.dashboard ? recentActivitiesApi : (params.fastLoad ? dashboardApi : recentActivitiesApi);
     const response = await apiInstance.get('/logs/recent', { params });
     return response.data;
   } catch (error) {
@@ -63,8 +64,9 @@ export const getRecentActivities = async (params = {}) => {
 // Get recent activities for the current user
 export const getUserRecentActivities = async (params = {}) => {
   try {
-    // Use dashboard API for better timeout handling when called from dashboard
-    const apiInstance = params.dashboard ? dashboardApi : api;
+    // Use specialized recent activities API for better timeout handling with large datasets
+    // Fall back to dashboard API for dashboard calls, or regular API for other calls
+    const apiInstance = params.dashboard ? recentActivitiesApi : (params.fastLoad ? dashboardApi : recentActivitiesApi);
     const response = await apiInstance.get('/logs/user/recent', { params });
     return response.data;
   } catch (error) {

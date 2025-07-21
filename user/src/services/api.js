@@ -6,7 +6,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  withCredentials: true // Enable sending cookies
+  withCredentials: true, // Enable sending cookies
+  timeout: 15000 // 15 seconds default timeout
 });
 
 // Add a request interceptor to add the auth token to requests
@@ -82,5 +83,23 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Create specialized API instances for different use cases
+export const dashboardApi = axios.create({
+  ...api.defaults,
+  timeout: 5000, // 5 seconds for dashboard calls
+});
+
+// Create a specialized API instance for recent activities with longer timeout
+export const recentActivitiesApi = axios.create({
+  ...api.defaults,
+  timeout: 12000, // 12 seconds for recent activities to handle large datasets
+});
+
+// Apply the same interceptors to specialized APIs
+dashboardApi.interceptors.request = api.interceptors.request;
+dashboardApi.interceptors.response = api.interceptors.response;
+recentActivitiesApi.interceptors.request = api.interceptors.request;
+recentActivitiesApi.interceptors.response = api.interceptors.response;
 
 export default api;

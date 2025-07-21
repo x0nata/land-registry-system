@@ -116,8 +116,7 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Optimize user lookup with lean() for better performance
-    const user = await User.findOne({ email }).select('+password').maxTimeMS(5000).lean();
+    const user = await User.findOne({ email }).maxTimeMS(8000);
 
     if (!user) {
       console.log('❌ User not found:', email);
@@ -126,9 +125,8 @@ export const loginUser = async (req, res) => {
 
     console.log('✅ User found:', user.email, 'Role:', user.role);
 
-    // Check if password matches using bcrypt directly for lean() objects
-    const bcrypt = await import('bcryptjs');
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Check if password matches
+    const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
       console.log('❌ Invalid password for:', email);

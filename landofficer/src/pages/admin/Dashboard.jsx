@@ -1,210 +1,72 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
-import * as userService from '../../services/userService';
-import * as propertyService from '../../services/propertyService';
-import RecentActivity from '../../components/dashboard/RecentActivity';
-import DashboardSearch from '../../components/dashboard/DashboardSearch';
-import ActivityTimeline from '../../components/dashboard/ActivityTimeline';
+import { Link } from 'react-router-dom';
 import {
-  MagnifyingGlassIcon,
   UserGroupIcon,
   HomeIcon,
   DocumentTextIcon,
   CurrencyDollarIcon,
   ChartBarIcon,
-  ArrowPathIcon
+  PlusIcon,
+  EyeIcon,
+  CheckCircleIcon,
+  DocumentChartBarIcon
 } from '@heroicons/react/24/outline';
 
 const AdminDashboard = () => {
   const { user: authUser } = useAuth();
-  const [loading, setLoading] = useState(true);
 
-  // System statistics - initial state
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalProperties: 0,
-    pendingApplications: 0,
-    completedApplications: 0,
-    totalPayments: 0,
-    pendingPayments: 0,
-    revenueThisMonth: 0,
-    revenueLastMonth: 0
-  });
-
-  // Recent activities - empty initial state
-  const [recentActivities, setRecentActivities] = useState([]);
-
-  // Land officers - empty initial state
-  const [landOfficers, setLandOfficers] = useState([]);
-
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  // Format currency
-  const formatCurrency = (amount, currency = 'ETB') => {
-    return new Intl.NumberFormat('en-ET', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2
-    }).format(amount);
-  };
-
-  // Get activity icon and color
-  const getActivityDetails = (type) => {
-    switch (type) {
-      case 'application_approved':
-        return {
-          icon: '✓',
-          color: 'bg-green-100 text-green-800',
-          label: 'Application Approved'
-        };
-      case 'payment_verified':
-        return {
-          icon: '💰',
-          color: 'bg-blue-100 text-blue-800',
-          label: 'Payment Verified'
-        };
-      case 'user_registered':
-        return {
-          icon: '👤',
-          color: 'bg-purple-100 text-purple-800',
-          label: 'User Registered'
-        };
-      case 'property_registered':
-        return {
-          icon: '🏠',
-          color: 'bg-yellow-100 text-yellow-800',
-          label: 'Property Registered'
-        };
-      case 'document_rejected':
-        return {
-          icon: '❌',
-          color: 'bg-red-100 text-red-800',
-          label: 'Document Rejected'
-        };
-      default:
-        return {
-          icon: '📝',
-          color: 'bg-gray-100 text-gray-800',
-          label: type.replace('_', ' ')
-        };
+  // Quick action items for the dashboard
+  const quickActions = [
+    {
+      title: 'Add New Land Officer',
+      description: 'Create new landofficer account and manage user registrations',
+      icon: <UserGroupIcon className="h-8 w-8" />,
+      path: '/admin/users/new',
+      color: 'from-blue-500 to-blue-600',
+      hoverColor: 'hover:from-blue-600 hover:to-blue-700',
+      iconBg: 'bg-blue-100',
+      iconColor: 'text-blue-600'
+    },
+    {
+      title: 'Review Properties',
+      description: 'Review property registration applications',
+      icon: <HomeIcon className="h-8 w-8" />,
+      path: '/admin/properties',
+      color: 'from-green-500 to-green-600',
+      hoverColor: 'hover:from-green-600 hover:to-green-700',
+      iconBg: 'bg-green-100',
+      iconColor: 'text-green-600'
+    },
+    {
+      title: 'manage disputes',
+      description: 'Manage and resolve property disputes',
+      icon: <CurrencyDollarIcon className="h-8 w-8" />,
+      path: '/admin/disputes',
+      color: 'from-yellow-500 to-yellow-600',
+      hoverColor: 'hover:from-yellow-600 hover:to-yellow-700',
+      iconBg: 'bg-yellow-100',
+      iconColor: 'text-yellow-600'
+    },
+    {
+      title: 'Generate Reports',
+      description: 'Generate system reports and analytics',
+      icon: <ChartBarIcon className="h-8 w-8" />,
+      path: '/admin/reports',
+      color: 'from-purple-500 to-purple-600',
+      hoverColor: 'hover:from-purple-600 hover:to-purple-700',
+      iconBg: 'bg-purple-100',
+      iconColor: 'text-purple-600'
     }
-  };
+  ];
 
-  // Load dashboard data
-  useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        setLoading(true);
 
-        // Initialize default stats
-        let newStats = {
-          totalUsers: 0,
-          totalProperties: 0,
-          pendingApplications: 0,
-          completedApplications: 0,
-          totalPayments: 0,
-          pendingPayments: 0,
-          revenueThisMonth: 0,
-          revenueLastMonth: 0
-        };
-
-        // Fetch user statistics
-        try {
-          const userStats = await userService.getUserStats();
-          console.log('User stats received:', userStats);
-          newStats.totalUsers = userStats.totalUsers || 0;
-        } catch (userError) {
-          console.error('Error fetching user stats:', userError);
-          toast.error('Failed to load user statistics');
-        }
-
-        // Fetch all properties to calculate statistics
-        try {
-          const allProperties = await propertyService.getAllProperties();
-          console.log('Properties received:', allProperties);
-
-          // Handle different response structures
-          let propertiesArray = [];
-          if (Array.isArray(allProperties)) {
-            propertiesArray = allProperties;
-          } else if (allProperties && Array.isArray(allProperties.properties)) {
-            propertiesArray = allProperties.properties;
-          }
-
-          // Calculate property statistics
-          const pendingApplications = propertiesArray.filter(prop => prop.status === 'pending').length;
-          const completedApplications = propertiesArray.filter(prop => prop.status === 'approved').length;
-
-          newStats.totalProperties = propertiesArray.length || 0;
-          newStats.pendingApplications = pendingApplications;
-          newStats.completedApplications = completedApplications;
-        } catch (propertyError) {
-          console.error('Error fetching properties:', propertyError);
-          toast.error('Failed to load property statistics');
-        }
-
-        // Update stats
-        setStats(newStats);
-
-        // Get land officers
-        try {
-          const landOfficersData = await userService.getLandOfficers();
-          console.log('Land officers received:', landOfficersData);
-
-          if (Array.isArray(landOfficersData)) {
-            setLandOfficers(landOfficersData.map(officer => ({
-              id: officer._id,
-              name: officer.fullName,
-              email: officer.email,
-              assignedApplications: 0, // Will be calculated when assignment data is available
-              completedApplications: 0
-            })));
-          } else {
-            console.warn('Land officers data is not an array:', landOfficersData);
-            setLandOfficers([]);
-          }
-        } catch (officerError) {
-          console.error('Error fetching land officers:', officerError);
-          toast.error('Failed to load land officers');
-          setLandOfficers([]);
-        }
-
-        // Set recent activities (empty for now, will be populated when activity log API is available)
-        setRecentActivities([]);
-
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
-        toast.error('Failed to load dashboard data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDashboardData();
-  }, []);
-
-  if (loading) {
-    return <div className="flex justify-center items-center h-[70vh]">Loading...</div>;
-  }
-
+  // Access control check
   if (!authUser || authUser.role !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh]">
         <h2 className="text-2xl font-bold mb-4">Access Denied</h2>
         <p className="mb-6">You need to be logged in as an Administrator to view this page.</p>
-        <Link to="/login" className="btn-primary px-6 py-2 rounded-md">
+        <Link to="/admin-login" className="btn-primary px-6 py-2 rounded-md">
           Login
         </Link>
       </div>
@@ -212,175 +74,109 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Welcome, {authUser.fullName || 'Administrator'}</h2>
-            <p className="text-gray-600">Manage the property registration system</p>
-          </div>
-          <div className="mt-4 md:mt-0 flex space-x-4">
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 flex items-center"
-            >
-              <ArrowPathIcon className="h-5 w-5 mr-1" />
-              Refresh
-            </button>
-            <Link
-              to="/admin/users"
-              className="btn-primary px-4 py-2 rounded-md"
-            >
-              Manage Users
-            </Link>
-            <Link
-              to="/admin/reports"
-              className="bg-ethiopian-yellow text-gray-900 px-4 py-2 rounded-md hover:bg-opacity-90 transition-colors"
-            >
-              View Reports
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Dashboard Search */}
-      <div className="mb-8">
-        <DashboardSearch
-          placeholder="Search users, properties, applications..."
-          searchType="all"
-          className="w-full"
-        />
-      </div>
-
-      {/* Dashboard Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-2">Users</h3>
-          <p className="text-3xl font-bold text-ethiopian-green">{stats.totalUsers}</p>
-          <p className="text-gray-600 mt-1">Total registered users</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-2">Properties</h3>
-          <p className="text-3xl font-bold text-ethiopian-yellow">{stats.totalProperties}</p>
-          <p className="text-gray-600 mt-1">Total registered properties</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-2">Applications</h3>
-          <p className="text-3xl font-bold text-ethiopian-red">{stats.pendingApplications}</p>
-          <p className="text-gray-600 mt-1">Pending applications</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-2">Revenue (This Month)</h3>
-          <p className="text-3xl font-bold text-blue-600">{formatCurrency(stats.revenueThisMonth)}</p>
-          <p className="text-gray-600 mt-1">
-            {stats.revenueThisMonth > stats.revenueLastMonth ? (
-              <span className="text-green-600">↑ {Math.round((stats.revenueThisMonth - stats.revenueLastMonth) / stats.revenueLastMonth * 100)}%</span>
-            ) : (
-              <span className="text-red-600">↓ {Math.round((stats.revenueLastMonth - stats.revenueThisMonth) / stats.revenueLastMonth * 100)}%</span>
-            )}
-            {' '}from last month
-          </p>
-        </div>
-      </div>
-
-      {/* Recent Activities and Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        <div className="lg:col-span-2">
-          <RecentActivity
-            limit={8}
-            showFilters={true}
-            showHeader={true}
-            className=""
-          />
-        </div>
-
-        {/* Land Officers */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-4">Land Officers</h3>
-          <div className="space-y-4">
-            {landOfficers.map((officer) => (
-              <div key={officer.id} className="border-b pb-4 last:border-b-0 last:pb-0">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-medium">{officer.name}</h4>
-                    <p className="text-gray-600 text-sm">{officer.email}</p>
-                  </div>
-                  <Link to={`/admin/users/${officer.id}`} className="text-ethiopian-green text-sm hover:underline">
-                    View
-                  </Link>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <div className="bg-gray-50 p-2 rounded">
-                    <p className="text-xs text-gray-500">Assigned</p>
-                    <p className="font-semibold">{officer.assignedApplications}</p>
-                  </div>
-                  <div className="bg-gray-50 p-2 rounded">
-                    <p className="text-xs text-gray-500">Completed</p>
-                    <p className="font-semibold">{officer.completedApplications}</p>
-                  </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header Section */}
+        <div className="bg-white rounded-xl shadow-lg p-8 mb-8 border-l-4 border-primary">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div className="mb-6 lg:mb-0">
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">
+                Admin Dashboard
+              </h1>
+              <p className="text-xl text-gray-600">
+                Welcome back, <span className="font-semibold text-primary">{authUser.fullName || 'Administrator'}</span>
+              </p>
+              <p className="text-gray-500 mt-1">
+                Manage your land registry system efficiently
+              </p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="bg-gradient-to-r from-green-400 to-green-600 text-white px-4 py-2 rounded-lg shadow-md">
+                <div className="flex items-center">
+                  <CheckCircleIcon className="h-5 w-5 mr-2" />
+                  <span className="font-medium">System Active</span>
                 </div>
               </div>
-            ))}
-          </div>
-          <div className="mt-4 text-right">
-            <Link to="/admin/land-officers" className="text-ethiopian-green hover:underline">
-              Manage Land Officers
-            </Link>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link
-            to="/admin/users/new"
-            className="bg-gray-50 hover:bg-gray-100 p-4 rounded-lg flex flex-col items-center text-center transition-colors"
-          >
-            <div className="w-12 h-12 bg-ethiopian-green bg-opacity-10 rounded-full flex items-center justify-center mb-2">
-              <span className="text-ethiopian-green text-xl">👤</span>
-            </div>
-            <h4 className="font-medium">Add New User</h4>
-            <p className="text-gray-600 text-sm">Create user accounts</p>
-          </Link>
+        {/* Quick Actions Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {quickActions.map((action, index) => (
+            <Link
+              key={index}
+              to={action.path}
+              className="group transform transition-all duration-300 hover:scale-105"
+            >
+              <div className={`bg-gradient-to-br ${action.color} ${action.hoverColor} rounded-xl shadow-lg p-6 text-white relative overflow-hidden transition-all duration-300 group-hover:shadow-2xl`}>
+                {/* Background Pattern */}
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 opacity-20">
+                  <div className="w-24 h-24 rounded-full bg-white"></div>
+                </div>
 
-          <Link
-            to="/admin/properties"
-            className="bg-gray-50 hover:bg-gray-100 p-4 rounded-lg flex flex-col items-center text-center transition-colors"
-          >
-            <div className="w-12 h-12 bg-ethiopian-yellow bg-opacity-10 rounded-full flex items-center justify-center mb-2">
-              <span className="text-ethiopian-yellow text-xl">📝</span>
-            </div>
-            <h4 className="font-medium">Review Properties</h4>
-            <p className="text-gray-600 text-sm">Manage pending properties</p>
-          </Link>
+                {/* Icon */}
+                <div className={`${action.iconBg} ${action.iconColor} w-16 h-16 rounded-xl flex items-center justify-center mb-4 shadow-md group-hover:scale-110 transition-transform duration-300`}>
+                  {action.icon}
+                </div>
 
-          <Link
-            to="/admin/payments"
-            className="bg-gray-50 hover:bg-gray-100 p-4 rounded-lg flex flex-col items-center text-center transition-colors"
-          >
-            <div className="w-12 h-12 bg-ethiopian-red bg-opacity-10 rounded-full flex items-center justify-center mb-2">
-              <span className="text-ethiopian-red text-xl">💰</span>
-            </div>
-            <h4 className="font-medium">Verify Payments</h4>
-            <p className="text-gray-600 text-sm">Process pending payments</p>
-          </Link>
+                {/* Content */}
+                <h3 className="text-xl font-bold mb-2 group-hover:text-white transition-colors">
+                  {action.title}
+                </h3>
+                <p className="text-white/90 text-sm leading-relaxed">
+                  {action.description}
+                </p>
 
-          <Link
-            to="/admin/reports"
-            className="bg-gray-50 hover:bg-gray-100 p-4 rounded-lg flex flex-col items-center text-center transition-colors"
-          >
-            <div className="w-12 h-12 bg-blue-500 bg-opacity-10 rounded-full flex items-center justify-center mb-2">
-              <span className="text-blue-500 text-xl">📊</span>
+                {/* Arrow Icon */}
+                <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {/* Additional Information Section */}
+        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              System Management Hub
+            </h2>
+            <p className="text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              Use the quick actions above to efficiently manage your land registry system.
+              Each action provides direct access to the most important administrative functions.
+            </p>
+          </div>
+
+          {/* Feature Highlights */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+            <div className="text-center p-4">
+              <div className="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                <UserGroupIcon className="h-6 w-6 text-blue-600" />
+              </div>
+              <h3 className="font-semibold text-gray-800 mb-2">User Management</h3>
+              <p className="text-sm text-gray-600">Create and manage landofficer accounts with role-based access control</p>
             </div>
-            <h4 className="font-medium">Generate Reports</h4>
-            <p className="text-gray-600 text-sm">Create system reports</p>
-          </Link>
+
+            <div className="text-center p-4">
+              <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                <HomeIcon className="h-6 w-6 text-green-600" />
+              </div>
+              <h3 className="font-semibold text-gray-800 mb-2">Property Review</h3>
+              <p className="text-sm text-gray-600">Review property registration applications</p>
+            </div>
+
+            <div className="text-center p-4">
+              <div className="bg-purple-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                <ChartBarIcon className="h-6 w-6 text-purple-600" />
+              </div>
+              <h3 className="font-semibold text-gray-800 mb-2">Analytics & Reports</h3>
+              <p className="text-sm text-gray-600">Generate comprehensive reports and system analytics</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

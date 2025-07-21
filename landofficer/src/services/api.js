@@ -134,6 +134,23 @@ export const dashboardApi = axios.create({
 dashboardApi.interceptors.request = api.interceptors.request;
 dashboardApi.interceptors.response = api.interceptors.response;
 
+// Create a specialized API instance for recent activities with longer timeout
+export const recentActivitiesApi = axios.create({
+  ...api.defaults,
+  timeout: 12000, // 12 seconds for recent activities to handle large datasets
+  retry: 1, // Allow 1 retry for recent activities
+  retryDelay: 500, // Short delay for retries
+  retryCondition: (error) => {
+    // Only retry on network errors and 5xx server errors
+    return error.code === 'NETWORK_ERROR' ||
+           (error.response && error.response.status >= 500 && error.response.status < 600);
+  }
+});
+
+// Apply the same interceptors to recent activities API
+recentActivitiesApi.interceptors.request = api.interceptors.request;
+recentActivitiesApi.interceptors.response = api.interceptors.response;
+
 // Create a fast API instance for critical calls
 export const fastApi = axios.create({
   ...api.defaults,
