@@ -69,7 +69,11 @@ export const getUserProperties = async (req, res) => {
       registrationDate: -1,
     });
 
-    res.json(properties);
+    res.json({
+      success: true,
+      properties,
+      count: properties.length
+    });
   } catch (error) {
     console.error("Error fetching user properties:", error);
     res.status(500).json({ message: "Server error while fetching properties" });

@@ -31,11 +31,13 @@ const DisputeSubmission = () => {
   useEffect(() => {
     const fetchProperties = async () => {
       try {
+        console.log('Fetching user properties...');
         const response = await getUserProperties();
-        setProperties(response.properties || []);
+        console.log('Properties response:', response);
+        setProperties(response.properties || response || []);
       } catch (error) {
         console.error('Error fetching properties:', error);
-        toast.error('Failed to load properties');
+        toast.error(`Failed to load properties: ${error.message || 'Unknown error'}`);
       } finally {
         setLoading(false);
       }
