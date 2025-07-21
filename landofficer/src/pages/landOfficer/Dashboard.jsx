@@ -140,13 +140,13 @@ const LandOfficerDashboard = () => {
       console.log('✅ Loading dashboard data for user:', user.role);
       loadDashboardData();
 
-      // Add a safety timeout to prevent infinite loading
+      // Add a safety timeout to prevent infinite loading (reduced to 8 seconds)
       const loadingTimeout = setTimeout(() => {
         console.warn('⚠️ Dashboard loading timeout reached, forcing completion');
         setStatsLoading(false);
         setPendingAppsLoading(false);
         setPendingDocsLoading(false);
-      }, 15000); // 15 seconds maximum loading time
+      }, 8000); // 8 seconds maximum loading time (reduced from 15s)
 
       return () => clearTimeout(loadingTimeout);
     } else if (!loading) {

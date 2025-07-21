@@ -124,9 +124,10 @@ api.interceptors.response.use(
 // Create specialized API instances for different use cases
 export const dashboardApi = axios.create({
   ...api.defaults,
-  timeout: 10000, // Reduced to 10 seconds for faster dashboard loading
-  retry: 1, // Only 1 retry for dashboard to minimize delays
-  retryDelay: 200 // Very short delay for dashboard calls
+  timeout: 5000, // Reduced to 5 seconds for very fast dashboard loading
+  retry: 0, // No retries for dashboard to prevent any delays
+  retryDelay: 0, // No delay for dashboard calls
+  retryCondition: () => false // Never retry dashboard calls
 });
 
 // Apply the same interceptors to dashboard API
@@ -136,9 +137,10 @@ dashboardApi.interceptors.response = api.interceptors.response;
 // Create a fast API instance for critical calls
 export const fastApi = axios.create({
   ...api.defaults,
-  timeout: 8000, // Reduced to 8 seconds for fast calls
-  retry: 1, // Only 1 retry for fast calls
-  retryDelay: 100 // Very short delay for fast calls
+  timeout: 3000, // Reduced to 3 seconds for very fast calls
+  retry: 0, // No retries for fast calls to prevent delays
+  retryDelay: 0, // No delay for fast calls
+  retryCondition: () => false // Never retry fast calls
 });
 
 // Apply the same interceptors to fast API
