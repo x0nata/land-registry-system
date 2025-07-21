@@ -10,6 +10,7 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
+import api from '../../services/api';
 
 const CBEBirrPayment = () => {
   const { transactionId } = useParams();
@@ -94,18 +95,12 @@ const CBEBirrPayment = () => {
       // Simulate payment processing delay
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const response = await fetch(`/api/payments/cbe-birr/process/${transactionId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cbeAccountNumber: values.cbeAccountNumber,
-          cbePin: values.cbePin
-        })
+      const response = await api.post(`/payments/cbe-birr/process/${transactionId}`, {
+        cbeAccountNumber: values.cbeAccountNumber,
+        cbePin: values.cbePin
       });
 
-      const result = await response.json();
+      const result = response.data;
 
       if (result.success) {
         toast.success('Payment completed successfully!');

@@ -96,13 +96,18 @@ const AdminDisputes = () => {
   };
 
   const handleStatusUpdate = async () => {
+    console.log('handleStatusUpdate called', { selectedDispute: selectedDispute?._id, statusUpdate });
+
     if (!statusUpdate.status || !statusUpdate.notes.trim()) {
       toast.error('Status and notes are required');
       return;
     }
 
     try {
-      await updateDisputeStatus(selectedDispute._id, statusUpdate);
+      console.log('Calling updateDisputeStatus API...');
+      const result = await updateDisputeStatus(selectedDispute._id, statusUpdate);
+      console.log('Status update result:', result);
+
       toast.success('Dispute status updated successfully');
       setShowStatusModal(false);
       setSelectedDispute(null);
@@ -115,13 +120,18 @@ const AdminDisputes = () => {
   };
 
   const handleResolveDispute = async () => {
+    console.log('handleResolveDispute called', { selectedDispute: selectedDispute?._id, resolution });
+
     if (!resolution.decision || !resolution.resolutionNotes.trim()) {
       toast.error('Decision and resolution notes are required');
       return;
     }
 
     try {
-      await resolveDispute(selectedDispute._id, resolution);
+      console.log('Calling resolveDispute API...');
+      const result = await resolveDispute(selectedDispute._id, resolution);
+      console.log('Resolve result:', result);
+
       toast.success('Dispute resolved successfully');
       setShowResolveModal(false);
       setSelectedDispute(null);
@@ -134,13 +144,18 @@ const AdminDisputes = () => {
   };
 
   const handleAssignDispute = async () => {
+    console.log('handleAssignDispute called', { selectedDispute: selectedDispute?._id, assignment });
+
     if (!assignment.assignedTo) {
       toast.error('Please select a land officer to assign');
       return;
     }
 
     try {
-      await assignDispute(selectedDispute._id, assignment);
+      console.log('Calling assignDispute API...');
+      const result = await assignDispute(selectedDispute._id, assignment);
+      console.log('Assign result:', result);
+
       toast.success('Dispute assigned successfully');
       setShowAssignModal(false);
       setSelectedDispute(null);

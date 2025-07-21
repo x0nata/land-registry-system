@@ -4,7 +4,12 @@ import api from './api';
 export const getUserProperties = async () => {
   try {
     const response = await api.get('/properties/user');
-    return response.data;
+    // Extract properties array from the response object
+    if (response.data && response.data.success && Array.isArray(response.data.properties)) {
+      return response.data.properties;
+    }
+    // Fallback for different response structures
+    return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     throw error.response?.data || { message: 'Failed to fetch properties' };
   }

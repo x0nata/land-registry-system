@@ -1,11 +1,12 @@
 import Document from "../models/Document.js";
 import Property from "../models/Property.js";
+import User from "../models/User.js";
 import ApplicationLog from "../models/ApplicationLog.js";
 import { validationResult } from "express-validator";
 import fs from "fs";
 import { uploadToGridFS, uploadBufferToGridFS, deleteFromGridFS, getFileStream, getFileInfo } from "../config/gridfs.js";
 
-// Helper function to check if all documents for a property are validated
+// Helper function to check if all required documents for a property are validated
 const checkAllDocumentsValidated = async (propertyId) => {
   try {
     const property = await Property.findById(propertyId).populate('documents');
@@ -13,9 +14,32 @@ const checkAllDocumentsValidated = async (propertyId) => {
       return false; // No documents means not validated
     }
 
-    const allValidated = property.documents.every(doc => doc.status === 'verified');
+    // Define required document types
+    const requiredDocumentTypes = ['title_deed', 'id_copy', 'tax_clearance', 'application_form'];
 
-    if (allValidated && !property.documentsValidated) {
+    // Check if all required document types are present and verified
+    const documentsByType = {};
+    property.documents.forEach(doc => {
+      if (requiredDocumentTypes.includes(doc.documentType)) {
+        documentsByType[doc.documentType] = doc;
+      }
+    });
+
+    // Check if all required document types are uploaded
+    const allRequiredTypesUploaded = requiredDocumentTypes.every(type =>
+      documentsByType[type] !== undefined
+    );
+
+    if (!allRequiredTypesUploaded) {
+      return false; // Not all required document types are uploaded
+    }
+
+    // Check if all required documents are verified
+    const allRequiredDocumentsVerified = requiredDocumentTypes.every(type =>
+      documentsByType[type] && documentsByType[type].status === 'verified'
+    );
+
+    if (allRequiredDocumentsVerified && !property.documentsValidated) {
       // Update property status to documents_validated
       property.documentsValidated = true;
       property.status = 'documents_validated';
@@ -30,11 +54,31 @@ const checkAllDocumentsValidated = async (propertyId) => {
         previousStatus: property.status,
         performedBy: null, // System action
         performedByRole: 'system',
-        notes: "All documents have been validated"
+        notes: "All required documents (title deed, ID copy, tax clearance, application form) have been validated"
       });
+
+      // Send payment required notification now that all documents are validated
+      try {
+        const { default: NotificationService } = await import('../services/notificationService.js');
+        const { default: PaymentCalculationService } = await import('../services/paymentCalculationService.js');
+
+        // Get user details
+        const user = await User.findById(property.owner);
+        if (user) {
+          // Calculate payment amount
+          const calculation = PaymentCalculationService.calculateRegistrationFee(property, user);
+          const amount = calculation.summary.totalAmount;
+
+          // Send payment notification
+          await NotificationService.sendPaymentRequiredNotification(property, user, amount);
+        }
+      } catch (notificationError) {
+        console.error('Error sending payment notification:', notificationError);
+        // Don't fail the document validation if notification fails
+      }
     }
 
-    return allValidated;
+    return allRequiredDocumentsVerified;
   } catch (error) {
     console.error('Error checking document validation status:', error);
     return false;

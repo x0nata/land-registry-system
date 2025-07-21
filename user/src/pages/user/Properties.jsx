@@ -29,8 +29,11 @@ const Properties = () => {
       try {
         const userProperties = await getUserProperties();
         console.log('Fetched user properties:', userProperties);
-        setProperties(userProperties || []);
-        setFilteredProperties(userProperties || []);
+
+        // Ensure we always have an array
+        const propertiesArray = Array.isArray(userProperties) ? userProperties : [];
+        setProperties(propertiesArray);
+        setFilteredProperties(propertiesArray);
       } catch (error) {
         console.error('Error loading properties:', error);
         toast.error('Failed to load properties');
@@ -46,7 +49,9 @@ const Properties = () => {
 
   // Filter properties based on search term, status, and type
   useEffect(() => {
-    let filtered = properties;
+    // Ensure properties is always an array before filtering
+    const propertiesArray = Array.isArray(properties) ? properties : [];
+    let filtered = propertiesArray;
 
     // Filter by search term
     if (searchTerm) {
@@ -162,6 +167,21 @@ const Properties = () => {
         </div>
       </div>
 
+      {/* Workflow Information */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="flex items-start">
+          <DocumentTextIcon className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+          <div>
+            <h3 className="text-sm font-medium text-blue-800 mb-1">Property Registration Workflow</h3>
+            <p className="text-sm text-blue-700">
+              <strong>Upload all documents and get them validated to proceed to payment.</strong>
+              You must upload and validate all 4 required documents (Title Deed, ID Copy, Tax Clearance, Application Form)
+              before you can make payment and complete your property registration.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -204,7 +224,7 @@ const Properties = () => {
       </div>
 
       {/* Properties Grid */}
-      {filteredProperties.length === 0 ? (
+      {!Array.isArray(filteredProperties) || filteredProperties.length === 0 ? (
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
           <HomeIcon className="h-12 w-12 mx-auto text-gray-400" />
           <h2 className="mt-4 text-xl font-semibold">No Properties Found</h2>
@@ -222,7 +242,7 @@ const Properties = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProperties.map((property) => (
+          {Array.isArray(filteredProperties) && filteredProperties.map((property) => (
             <div key={property._id || property.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
               <div className="p-6">
                 <div className="flex justify-between items-start">
@@ -266,20 +286,40 @@ const Properties = () => {
 
                 <div className="mt-4 pt-4 border-t">
                   <div className="flex justify-between items-center">
-                    <div className="flex space-x-1">
-                      {property.documents && property.documents.length > 0 ? (
-                        property.documents.map((doc, index) => (
-                          <span
-                            key={doc._id || doc.id || `doc-${index}`}
-                            className={`w-3 h-3 rounded-full ${
-                              doc.status === 'verified' ? 'bg-green-500' :
-                              doc.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'
-                            }`}
-                            title={`${doc.type?.replace('_', ' ')}: ${doc.status}`}
-                          ></span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-gray-500">No documents uploaded</span>
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-medium text-gray-700">Documents:</span>
+                        {property.documents && property.documents.length > 0 ? (
+                          <div className="flex space-x-1">
+                            {property.documents.map((doc, index) => (
+                              <span
+                                key={doc._id || doc.id || `doc-${index}`}
+                                className={`w-3 h-3 rounded-full ${
+                                  doc.status === 'verified' ? 'bg-green-500' :
+                                  doc.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'
+                                }`}
+                                title={`${doc.documentType?.replace('_', ' ')}: ${doc.status}`}
+                              ></span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-500">None uploaded</span>
+                        )}
+                      </div>
+                      {property.documents && property.documents.length < 4 && (
+                        <span className="text-xs text-orange-600">
+                          Upload all 4 required documents to proceed to payment
+                        </span>
+                      )}
+                      {property.documents && property.documents.length >= 4 && !property.documentsValidated && (
+                        <span className="text-xs text-blue-600">
+                          Waiting for document validation
+                        </span>
+                      )}
+                      {property.documentsValidated && !property.paymentCompleted && (
+                        <span className="text-xs text-green-600">
+                          Documents validated - Ready for payment
+                        </span>
                       )}
                     </div>
                     <div className="flex space-x-2">

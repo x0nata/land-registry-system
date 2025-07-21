@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getPropertyById } from '../../services/propertyService';
+import api from '../../services/api';
 import DocumentManager from '../../components/document/DocumentManager';
 import PaymentMethodSelector from '../../components/payment/PaymentMethodSelector';
 import PaymentStatusIndicator, { PaymentWorkflowProgress } from '../../components/payment/PaymentStatusIndicator';
@@ -83,20 +84,14 @@ const PropertyDetails = () => {
   // Fetch payment requirements
   const fetchPaymentRequirements = async () => {
     try {
-      const response = await fetch(`/api/properties/${id}/payment-requirements`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setPaymentRequirements(result);
-      } else {
-        console.error('Failed to fetch payment requirements');
-      }
+      const response = await api.get(`/properties/${id}/payment-requirements`);
+      setPaymentRequirements(response.data);
     } catch (error) {
       console.error('Error fetching payment requirements:', error);
+      // Only show error toast if it's not a 404 (property not found)
+      if (error.response?.status !== 404) {
+        toast.error('Failed to fetch payment requirements');
+      }
     }
   };
 

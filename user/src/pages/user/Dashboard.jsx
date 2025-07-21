@@ -73,15 +73,28 @@ const UserDashboard = () => {
       setSelectedProperty(null);
 
       // Reload properties
-      const userProperties = await getUserProperties();
-      setProperties(userProperties || []);
+      const response = await getUserProperties();
+      const propertiesArray = response?.properties || [];
+      setProperties(propertiesArray);
 
       // Update stats
+      const totalPayments = propertiesArray.reduce((total, property) => {
+        if (property.paymentCompleted || property.status === 'payment_completed') {
+          return total + 1;
+        }
+        return total;
+      }, 0);
+
       const realStats = {
-        totalProperties: userProperties?.length || 0,
-        pendingApplications: userProperties?.filter(prop => prop.status === 'pending').length || 0,
-        completedApplications: userProperties?.filter(prop => prop.status === 'approved').length || 0,
-        totalPayments: 0
+        totalProperties: propertiesArray.length,
+        pendingApplications: propertiesArray.filter(prop =>
+          prop.status === 'pending' ||
+          prop.status === 'documents_pending' ||
+          prop.status === 'documents_validated' ||
+          prop.status === 'payment_pending'
+        ).length,
+        completedApplications: propertiesArray.filter(prop => prop.status === 'approved').length,
+        totalPayments: totalPayments
       };
       setDashboardStats(realStats);
 
@@ -125,15 +138,28 @@ const UserDashboard = () => {
 
     // Reload properties
     try {
-      const userProperties = await getUserProperties();
-      setProperties(userProperties || []);
+      const response = await getUserProperties();
+      const propertiesArray = response?.properties || [];
+      setProperties(propertiesArray);
 
       // Update stats
+      const totalPayments = propertiesArray.reduce((total, property) => {
+        if (property.paymentCompleted || property.status === 'payment_completed') {
+          return total + 1;
+        }
+        return total;
+      }, 0);
+
       const realStats = {
-        totalProperties: userProperties?.length || 0,
-        pendingApplications: userProperties?.filter(prop => prop.status === 'pending').length || 0,
-        completedApplications: userProperties?.filter(prop => prop.status === 'approved').length || 0,
-        totalPayments: 0
+        totalProperties: propertiesArray.length,
+        pendingApplications: propertiesArray.filter(prop =>
+          prop.status === 'pending' ||
+          prop.status === 'documents_pending' ||
+          prop.status === 'documents_validated' ||
+          prop.status === 'payment_pending'
+        ).length,
+        completedApplications: propertiesArray.filter(prop => prop.status === 'approved').length,
+        totalPayments: totalPayments
       };
       setDashboardStats(realStats);
     } catch (error) {
@@ -159,16 +185,32 @@ const UserDashboard = () => {
     const loadDashboardData = async () => {
       try {
         // Fetch user's properties
-        const userProperties = await getUserProperties();
-        console.log('Fetched user properties:', userProperties);
-        setProperties(userProperties || []);
+        const response = await getUserProperties();
+        console.log('Fetched user properties response:', response);
+
+        // Extract properties array from response
+        const propertiesArray = response?.properties || [];
+        setProperties(propertiesArray);
 
         // Calculate stats based on actual data
+        const totalPayments = propertiesArray.reduce((total, property) => {
+          // Count properties that have completed payments
+          if (property.paymentCompleted || property.status === 'payment_completed') {
+            return total + 1;
+          }
+          return total;
+        }, 0);
+
         const realStats = {
-          totalProperties: userProperties?.length || 0,
-          pendingApplications: userProperties?.filter(prop => prop.status === 'pending').length || 0,
-          completedApplications: userProperties?.filter(prop => prop.status === 'approved').length || 0,
-          totalPayments: 0 // Will be calculated when payment data is available
+          totalProperties: propertiesArray.length,
+          pendingApplications: propertiesArray.filter(prop =>
+            prop.status === 'pending' ||
+            prop.status === 'documents_pending' ||
+            prop.status === 'documents_validated' ||
+            prop.status === 'payment_pending'
+          ).length,
+          completedApplications: propertiesArray.filter(prop => prop.status === 'approved').length,
+          totalPayments: totalPayments
         };
 
         setDashboardStats(realStats);

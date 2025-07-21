@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { 
-  CreditCardIcon, 
-  DevicePhoneMobileIcon, 
+import api from '../../services/api';
+import {
+  CreditCardIcon,
+  DevicePhoneMobileIcon,
   BanknotesIcon,
   ShieldCheckIcon,
   ClockIcon,
@@ -23,18 +24,8 @@ const PaymentMethodSelector = ({ propertyId, onPaymentInitiated }) => {
 
   const fetchPaymentCalculation = async () => {
     try {
-      const response = await fetch(`/api/payments/calculate/${propertyId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setPaymentCalculation(result.calculation);
-      } else {
-        toast.error('Failed to calculate payment amount');
-      }
+      const response = await api.get(`/payments/calculate/${propertyId}`);
+      setPaymentCalculation(response.data.calculation);
     } catch (error) {
       console.error('Error calculating payment:', error);
       toast.error('Error calculating payment amount');
@@ -45,7 +36,7 @@ const PaymentMethodSelector = ({ propertyId, onPaymentInitiated }) => {
 
   const handlePaymentMethodSelect = async (method) => {
     if (initiating) return;
-    
+
     setInitiating(true);
     setSelectedMethod(method);
 
@@ -53,30 +44,23 @@ const PaymentMethodSelector = ({ propertyId, onPaymentInitiated }) => {
       let endpoint;
       switch (method) {
         case 'cbe_birr':
-          endpoint = `/api/payments/cbe-birr/initialize/${propertyId}`;
+          endpoint = `/payments/cbe-birr/initialize/${propertyId}`;
           break;
         case 'telebirr':
-          endpoint = `/api/payments/telebirr/initialize/${propertyId}`;
+          endpoint = `/payments/telebirr/initialize/${propertyId}`;
           break;
         case 'chapa':
-          endpoint = `/api/payments/chapa/initialize/${propertyId}`;
+          endpoint = `/payments/chapa/initialize/${propertyId}`;
           break;
         default:
           throw new Error('Invalid payment method');
       }
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          returnUrl: `${window.location.origin}/property/${propertyId}`
-        })
+      const response = await api.post(endpoint, {
+        returnUrl: `${window.location.origin}/property/${propertyId}`
       });
 
-      const result = await response.json();
+      const result = response.data;
 
       if (result.success) {
         if (onPaymentInitiated) {
@@ -96,7 +80,7 @@ const PaymentMethodSelector = ({ propertyId, onPaymentInitiated }) => {
       }
     } catch (error) {
       console.error('Payment initialization error:', error);
-      toast.error('Failed to initialize payment');
+      toast.error(error.response?.data?.message || 'Failed to initialize payment');
     } finally {
       setInitiating(false);
       setSelectedMethod(null);
