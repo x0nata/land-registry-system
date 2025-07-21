@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { useAuth } from '../../context/AuthContext';
 import {
   DocumentTextIcon,
   CheckCircleIcon,
@@ -42,9 +43,13 @@ import {
 const RecentActivity = lazy(() => import('../../components/dashboard/RecentActivity'));
 
 const LandOfficerDashboard = () => {
-  // User data and loading states
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Use AuthContext for user data and authentication
+  const { user, loading } = useAuth();
+
+  // Debug logging
+  console.log('🏠 LandOfficerDashboard - User:', user);
+  console.log('🏠 LandOfficerDashboard - Loading:', loading);
+  console.log('🏠 LandOfficerDashboard - User Role:', user?.role);
 
   // Individual loading states for progressive loading
   const [statsLoading, setStatsLoading] = useState(true);
@@ -122,13 +127,7 @@ const LandOfficerDashboard = () => {
   };
 
   // Load user data from localStorage
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-    setLoading(false);
-  }, []);
+  // Remove manual user loading since we're using AuthContext
 
   // Load dashboard data
   useEffect(() => {
@@ -484,6 +483,33 @@ const LandOfficerDashboard = () => {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if user is authenticated and is a land officer
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center h-[70vh]">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Authentication Required</h2>
+          <p className="text-gray-600 mb-4">Please log in to access the dashboard.</p>
+          <Link to="/login" className="text-primary hover:underline">
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (user.role !== 'landOfficer') {
+    return (
+      <div className="flex justify-center items-center h-[70vh]">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h2>
+          <p className="text-gray-600 mb-4">You don't have permission to access this dashboard.</p>
+          <p className="text-sm text-gray-500">Current role: {user.role}</p>
         </div>
       </div>
     );

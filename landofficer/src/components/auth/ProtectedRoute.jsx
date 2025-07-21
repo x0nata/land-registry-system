@@ -5,9 +5,23 @@ const ProtectedRoute = ({ allowedRoles }) => {
   const { isAuthenticated, hasRole, loading, user } = useAuth();
   const location = useLocation();
 
-  // If authentication is still loading, show nothing
+  // Debug logging
+  console.log('🔒 ProtectedRoute - Loading:', loading);
+  console.log('🔒 ProtectedRoute - User:', user);
+  console.log('🔒 ProtectedRoute - IsAuthenticated:', isAuthenticated());
+  console.log('🔒 ProtectedRoute - AllowedRoles:', allowedRoles);
+  console.log('🔒 ProtectedRoute - Location:', location.pathname);
+
+  // If authentication is still loading, show loading state
   if (loading) {
-    return null;
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   // Check if user is authenticated
