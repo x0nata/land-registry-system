@@ -41,6 +41,49 @@ const RecentActivity = ({
 
   const { user } = useAuth();
 
+  // Memoize the filter function for better performance (moved up to avoid hoisting issues)
+  const applyFilters = useCallback(() => {
+    let filtered = [...activities];
+
+    // Filter by type
+    if (filters.type !== 'all') {
+      filtered = filtered.filter(activity => activity.action === filters.type);
+    }
+
+    // Filter by status
+    if (filters.status !== 'all') {
+      filtered = filtered.filter(activity => activity.status === filters.status);
+    }
+
+    // Filter by date range
+    if (filters.dateRange !== 'all') {
+      const now = new Date();
+      const filterDate = new Date();
+
+      switch (filters.dateRange) {
+        case 'today':
+          filterDate.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          filterDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          filterDate.setMonth(now.getMonth() - 1);
+          break;
+      }
+
+      filtered = filtered.filter(activity => new Date(activity.timestamp) >= filterDate);
+    }
+
+    setFilteredActivities(filtered.slice(0, limit));
+  }, [activities, filters, limit]);
+
+  // Create a debounced version of applyFilters for better performance
+  const debouncedApplyFilters = useMemo(
+    () => debounce(applyFilters, 300),
+    [applyFilters]
+  );
+
   useEffect(() => {
     loadActivities();
   }, [limit]);
@@ -105,42 +148,7 @@ const RecentActivity = ({
     await loadActivities(true);
   };
 
-  // Memoize the filter function for better performance
-  const applyFilters = useCallback(() => {
-    let filtered = [...activities];
-
-    // Filter by type
-    if (filters.type !== 'all') {
-      filtered = filtered.filter(activity => activity.action === filters.type);
-    }
-
-    // Filter by time range
-    const now = new Date();
-    const timeRanges = {
-      '1d': 1,
-      '7d': 7,
-      '30d': 30,
-      '90d': 90
-    };
-
-    if (filters.timeRange !== 'all' && timeRanges[filters.timeRange]) {
-      const cutoffDate = new Date(now.getTime() - (timeRanges[filters.timeRange] * 24 * 60 * 60 * 1000));
-      filtered = filtered.filter(activity => new Date(activity.timestamp) >= cutoffDate);
-    }
-
-    // Filter by status
-    if (filters.status !== 'all') {
-      filtered = filtered.filter(activity => activity.status === filters.status);
-    }
-
-    setFilteredActivities(filtered.slice(0, limit));
-  }, [activities, filters, limit]);
-
-  // Create a debounced version of applyFilters for better performance
-  const debouncedApplyFilters = useMemo(
-    () => debounce(applyFilters, 300),
-    [applyFilters]
-  );
+  // Removed duplicate applyFilters and debouncedApplyFilters functions (moved up to avoid hoisting issues)
 
   const getActivityIcon = (action, status) => {
     const iconClass = "h-5 w-5";
