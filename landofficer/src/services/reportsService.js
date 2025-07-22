@@ -3,29 +3,23 @@ import api, { dashboardApi, fastApi } from './api';
 // Get property statistics
 export const getPropertyStats = async (filters = {}) => {
   try {
-    // Use regular API for stats to avoid timeout issues with large datasets
-    // fastApi (3s timeout) was causing timeouts, use regular API (15s timeout) instead
-    const apiInstance = api;
+    // Use dashboard API for better performance
+    const apiInstance = dashboardApi;
 
     // Clean up params to avoid sending undefined values
     const cleanParams = Object.fromEntries(
       Object.entries(filters).filter(([_, value]) => value !== undefined && value !== null)
     );
 
-    // Add cache busting parameter to force fresh data
-    cleanParams.cb = Date.now();
-
-    console.log('📊 Fetching property stats with params:', cleanParams);
-
     const response = await apiInstance.get('/reports/properties', {
       params: cleanParams
     });
 
-    console.log('✅ Successfully fetched property stats');
-
     return response.data;
   } catch (error) {
-    console.error('❌ Error fetching property statistics:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error fetching property statistics:', error);
+    }
 
     // Enhanced error handling
     if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {
@@ -65,24 +59,21 @@ export const getUserStats = async (filters = {}) => {
 // Get document statistics
 export const getDocumentStats = async (filters = {}) => {
   try {
-    // Use regular API for stats to avoid timeout issues with large datasets
-    // fastApi (3s timeout) was causing timeouts, use regular API (15s timeout) instead
-    const apiInstance = api;
+    // Use dashboard API for better performance
+    const apiInstance = dashboardApi;
 
     // Clean up params to avoid sending undefined values
     const cleanParams = Object.fromEntries(
       Object.entries(filters).filter(([_, value]) => value !== undefined && value !== null)
     );
 
-    console.log('📋 Fetching document stats with params:', cleanParams);
-
     const response = await apiInstance.get('/reports/documents', { params: cleanParams });
-
-    console.log('✅ Successfully fetched document stats');
 
     return response.data;
   } catch (error) {
-    console.error('❌ Error fetching document statistics:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error fetching document statistics:', error);
+    }
 
     // Enhanced error handling
     if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {

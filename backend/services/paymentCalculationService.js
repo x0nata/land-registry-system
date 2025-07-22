@@ -93,44 +93,36 @@ class PaymentCalculationService {
       const isUrban = this.isUrbanLocation(subCity);
       const locationKey = isUrban ? 'urban' : 'rural';
       
-      // Get base fee
-      const baseFee = FEE_STRUCTURE.baseFees[propertyType]?.[locationKey] || 
-                     FEE_STRUCTURE.baseFees.residential[locationKey];
-      
-      // Calculate area-based fee
-      const areaMultiplier = FEE_STRUCTURE.areaMultipliers[propertyType]?.[locationKey] || 
-                            FEE_STRUCTURE.areaMultipliers.residential[locationKey];
-      const areaFee = area * areaMultiplier;
-      
-      // Get location multiplier
-      const locationMultiplier = this.getLocationMultiplier(subCity);
-      
-      // Calculate subtotal
-      const subtotal = (baseFee + areaFee) * locationMultiplier;
-      
-      // Calculate taxes
-      const registrationTax = subtotal * FEE_STRUCTURE.taxRates.registration;
-      const stampDuty = subtotal * FEE_STRUCTURE.taxRates.stamp;
-      const totalTax = registrationTax + stampDuty;
-      
-      // Processing fee
+      // CRITICAL CHANGE: Remove base registration fee component entirely
+      // Only calculate processing fees and taxes
+
+      // Processing fee (fixed amount)
       const processingFee = FEE_STRUCTURE.processingFee;
-      
-      // Calculate total before discount
-      const totalBeforeDiscount = subtotal + totalTax + processingFee;
+
+      // Calculate minimal tax base (using only processing fee as base)
+      // This significantly reduces the tax calculation
+      const taxBase = processingFee;
+
+      // Calculate taxes on the minimal base
+      const registrationTax = taxBase * FEE_STRUCTURE.taxRates.registration;
+      const stampDuty = taxBase * FEE_STRUCTURE.taxRates.stamp;
+      const totalTax = registrationTax + stampDuty;
+
+      // Calculate total before discount (no base registration fee)
+      const totalBeforeDiscount = processingFee + totalTax;
       
       // Apply discounts
       const discountAmount = this.calculateDiscounts(totalBeforeDiscount, user, options);
       
       // Final total
-      const totalAmount = totalBeforeDiscount - discountAmount;
-      
+      const totalAmount = Math.max(0, totalBeforeDiscount - discountAmount);
+
       return {
         breakdown: {
-          baseFee,
-          areaFee,
-          locationMultiplier,
-          subtotal,
+          baseFee: 0, // Removed base fee
+          areaFee: 0, // Removed area fee
+          locationMultiplier: 1,
+          subtotal: 0, // No subtotal since base fee is removed
           registrationTax,
           stampDuty,
           totalTax,
@@ -140,7 +132,7 @@ class PaymentCalculationService {
           totalAmount,
         },
         summary: {
-          baseFee: subtotal,
+          baseFee: 0, // Explicitly set to 0 to remove from display
           processingFee,
           taxAmount: totalTax,
           discountAmount,

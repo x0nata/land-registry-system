@@ -124,10 +124,13 @@ api.interceptors.response.use(
 // Create specialized API instances for different use cases
 export const dashboardApi = axios.create({
   ...api.defaults,
-  timeout: 5000, // Reduced to 5 seconds for very fast dashboard loading
-  retry: 0, // No retries for dashboard to prevent any delays
-  retryDelay: 0, // No delay for dashboard calls
-  retryCondition: () => false // Never retry dashboard calls
+  timeout: 8000, // Increased to 8 seconds for better reliability
+  retry: 1, // Allow 1 retry for dashboard calls
+  retryDelay: 200, // Very short delay for dashboard calls
+  retryCondition: (error) => {
+    // Only retry on network errors, not server errors
+    return error.code === 'NETWORK_ERROR' || error.code === 'ECONNABORTED';
+  }
 });
 
 // Apply the same interceptors to dashboard API

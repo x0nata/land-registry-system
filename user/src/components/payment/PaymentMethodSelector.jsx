@@ -151,10 +151,7 @@ const PaymentMethodSelector = ({ propertyId, onPaymentInitiated }) => {
       <div className="bg-gray-50 rounded-lg p-4 mb-6">
         <h3 className="text-lg font-semibold mb-3">Payment Summary</h3>
         <div className="space-y-2">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Base Registration Fee:</span>
-            <span className="font-medium">{paymentCalculation.summary.baseFee.toLocaleString()} ETB</span>
-          </div>
+          {/* Removed Base Registration Fee display */}
           <div className="flex justify-between">
             <span className="text-gray-600">Processing Fee:</span>
             <span className="font-medium">{paymentCalculation.summary.processingFee.toLocaleString()} ETB</span>

@@ -73,23 +73,21 @@ export const getAllProperties = async (filters = {}) => {
 // Get pending properties for review (land officer only)
 export const getPendingProperties = async (params = {}) => {
   try {
-    // Use dashboard API for better timeout handling when called from dashboard
-    const apiInstance = params.dashboard ? dashboardApi : api;
+    // Always use dashboard API for better performance
+    const apiInstance = dashboardApi;
 
     // Clean up params to avoid sending undefined values
     const cleanParams = Object.fromEntries(
       Object.entries(params).filter(([_, value]) => value !== undefined && value !== null)
     );
 
-    console.log('🏠 Fetching pending properties with params:', cleanParams);
-
     const response = await apiInstance.get('/properties/pending', { params: cleanParams });
-
-    console.log('✅ Successfully fetched pending properties:', response.data?.length || response.data?.properties?.length || 0, 'items');
 
     return response.data;
   } catch (error) {
-    console.error('❌ Error fetching pending properties:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error fetching pending properties:', error);
+    }
 
     // Enhanced error handling for timeout issues
     if (error.code === 'ECONNABORTED' || error.isRetryExhausted) {

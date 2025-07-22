@@ -565,14 +565,18 @@ export const calculatePaymentAmount = async (req, res) => {
 // @access  Private (User)
 export const initializeCBEBirrPayment = async (req, res) => {
   try {
+    console.log('CBE Birr payment initialization started for property:', req.params.propertyId);
+
     const property = await Property.findById(req.params.propertyId).populate('owner');
 
     if (!property) {
+      console.log('Property not found:', req.params.propertyId);
       return res.status(404).json({ message: "Property not found" });
     }
 
     // Check if user is the owner
     if (property.owner._id.toString() !== req.user._id.toString()) {
+      console.log('User not authorized for property:', req.user._id, 'vs', property.owner._id);
       return res.status(403).json({
         message: "Not authorized to make payment for this property"
       });
@@ -580,6 +584,7 @@ export const initializeCBEBirrPayment = async (req, res) => {
 
     // Check if documents are validated
     if (!property.documentsValidated) {
+      console.log('Documents not validated for property:', property._id);
       return res.status(400).json({
         message: "Cannot process payment. Documents must be validated first."
       });
@@ -587,19 +592,23 @@ export const initializeCBEBirrPayment = async (req, res) => {
 
     // Check if payment is already completed
     if (property.paymentCompleted) {
+      console.log('Payment already completed for property:', property._id);
       return res.status(400).json({
         message: "Payment has already been completed for this property."
       });
     }
 
     // Calculate payment amount
+    console.log('Calculating payment amount...');
     const calculation = PaymentCalculationService.calculateRegistrationFee(property, req.user);
     const amount = calculation.summary.totalAmount;
+    console.log('Calculated amount:', amount);
 
     // Generate transaction reference
     const transactionRef = `LR-${property._id}-${Date.now()}`;
 
     // Initialize CBE Birr payment
+    console.log('Preparing payment data...');
     const paymentData = {
       amount,
       currency: 'ETB',
@@ -607,17 +616,21 @@ export const initializeCBEBirrPayment = async (req, res) => {
       customerPhone: req.user.phoneNumber,
       customerEmail: req.user.email,
       description: `Property registration payment for plot ${property.plotNumber}`,
-      callbackUrl: `${process.env.BACKEND_URL}/api/payments/cbe-birr/callback`,
-      returnUrl: req.body.returnUrl || `${process.env.FRONTEND_URL}/property/${property._id}`,
+      callbackUrl: `${process.env.BACKEND_URL || 'https://land-registry-backend-plum.vercel.app'}/api/payments/cbe-birr/callback`,
+      returnUrl: req.body.returnUrl || `${process.env.FRONTEND_URL || 'http://localhost:3002'}/property/${property._id}`,
       transactionRef
     };
 
+    console.log('Calling payment gateway...');
     const gatewayResponse = await simulatedPaymentGateway.initializeCBEBirrPayment(paymentData);
+    console.log('Gateway response:', gatewayResponse);
 
     if (!gatewayResponse.success) {
+      console.error('Payment gateway failed:', gatewayResponse.error);
       return res.status(500).json({
         message: "Failed to initialize CBE Birr payment",
-        error: gatewayResponse.error
+        error: gatewayResponse.error,
+        details: gatewayResponse.details
       });
     }
 

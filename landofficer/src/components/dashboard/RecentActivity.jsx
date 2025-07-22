@@ -125,13 +125,12 @@ const RecentActivity = ({
         toast.success('Recent activities loaded successfully');
       }
     } catch (error) {
-      console.error('Error loading recent activities:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading recent activities:', error);
+      }
       setError(error);
 
-      if (error.isTimeout) {
-        // Don't show toast for timeout errors, we'll show a retry button instead
-        console.log('Request timed out, showing retry option');
-      } else {
+      if (!error.isTimeout) {
         toast.error(error.message || 'Failed to load recent activities');
       }
 

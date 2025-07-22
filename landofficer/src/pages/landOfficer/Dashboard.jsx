@@ -1,30 +1,22 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import {
   DocumentTextIcon,
   CheckCircleIcon,
-  XCircleIcon,
   ClockIcon,
   ChartBarIcon,
   DocumentMagnifyingGlassIcon,
-  CurrencyDollarIcon,
-  MagnifyingGlassIcon
+  CurrencyDollarIcon
 } from '@heroicons/react/24/outline';
 import DashboardSearch from '../../components/dashboard/DashboardSearch';
 import { getPendingProperties } from '../../services/propertyService';
-import { getPendingDocuments, verifyDocument, rejectDocument } from '../../services/documentService';
 import { getPropertyStats, getDocumentStats } from '../../services/reportsService';
 import {
-  trackDashboardLoad,
   trackStatsLoad,
   trackPendingAppsLoad,
-  trackPendingDocsLoad,
-  finishDashboardLoad,
   finishStatsLoad,
-  finishPendingAppsLoad,
-  finishPendingDocsLoad
+  finishPendingAppsLoad
 } from '../../utils/performanceMonitor';
 import {
   getCachedPropertyStats,
@@ -32,11 +24,7 @@ import {
   getCachedDocumentStats,
   cacheDocumentStats,
   getCachedPendingProperties,
-  cachePendingProperties,
-  getCachedPendingDocuments,
-  cachePendingDocuments,
-  invalidatePropertyCaches,
-  invalidateDocumentCaches
+  cachePendingProperties
 } from '../../utils/dataCache';
 
 // Lazy load RecentActivity component for better performance
@@ -46,23 +34,15 @@ const LandOfficerDashboard = () => {
   // Use AuthContext for user data and authentication
   const { user, loading } = useAuth();
 
-  // Debug logging
-  console.log('🏠 LandOfficerDashboard - User:', user);
-  console.log('🏠 LandOfficerDashboard - Loading:', loading);
-  console.log('🏠 LandOfficerDashboard - User Role:', user?.role);
-
   // Individual loading states for progressive loading
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [pendingAppsLoading, setPendingAppsLoading] = useState(true);
-  const [pendingDocsLoading, setPendingDocsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(false); // Start as false to prevent initial loading state
+  const [pendingAppsLoading, setPendingAppsLoading] = useState(false); // Start as false to prevent initial loading state
 
   // Error states for better error handling
   const [pendingAppsError, setPendingAppsError] = useState(null);
-  const [pendingDocsError, setPendingDocsError] = useState(null);
 
   // Real data from API
   const [pendingApplications, setPendingApplications] = useState([]);
-  const [pendingDocuments, setPendingDocuments] = useState([]);
   const [stats, setStats] = useState({
     totalProperties: 0,
     pendingProperties: 0,
@@ -74,11 +54,9 @@ const LandOfficerDashboard = () => {
     rejectedDocuments: 0
   });
 
-  // Modal states for document verification
-  const [showDocumentModal, setShowDocumentModal] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState(null);
-  const [actionType, setActionType] = useState(''); // 'approve' or 'reject'
-  const [notes, setNotes] = useState('');
+
+
+
 
   // Format date
   const formatDate = (dateString) => {
@@ -110,165 +88,121 @@ const LandOfficerDashboard = () => {
     }
   };
 
-  // Get document type display name
-  const getDocumentTypeDisplay = (type) => {
-    switch (type) {
-      case 'title_deed':
-        return 'Title Deed';
-      case 'id_copy':
-        return 'National ID';
-      case 'application_form':
-        return 'Application Form';
-      case 'tax_clearance':
-        return 'Tax Clearance';
-      default:
-        return type.replace('_', ' ');
-    }
-  };
+
 
   // Load user data from localStorage
   // Remove manual user loading since we're using AuthContext
 
-  // Load dashboard data
-  useEffect(() => {
-    console.log('🔄 Dashboard useEffect triggered - User:', user);
-    console.log('🔄 Dashboard useEffect - User role:', user?.role);
-
-    // Load dashboard data if we have a user (regardless of role for now)
-    // This ensures the dashboard shows content even if there are role issues
-    if (user) {
-      console.log('✅ Loading dashboard data for user:', user.role);
-      loadDashboardData();
-
-      // Add a safety timeout to prevent infinite loading (reduced to 8 seconds)
-      const loadingTimeout = setTimeout(() => {
-        console.warn('⚠️ Dashboard loading timeout reached, forcing completion');
-        setStatsLoading(false);
-        setPendingAppsLoading(false);
-        setPendingDocsLoading(false);
-      }, 8000); // 8 seconds maximum loading time (reduced from 15s)
-
-      return () => clearTimeout(loadingTimeout);
-    } else if (!loading) {
-      // If not loading and no user, still show dashboard with error message
-      console.log('❌ No user available, showing dashboard with error message');
-      setStatsLoading(false);
-      setPendingAppsLoading(false);
-      setPendingDocsLoading(false);
-    }
-  }, [user, loading]);
-
-  // Load dashboard data with parallel async operations for better performance
-  const loadDashboardData = async () => {
+  // Centralized function to refresh all dashboard data
+  const refreshDashboardData = useCallback(async () => {
     try {
-      trackDashboardLoad();
-
-      // Load critical stats first
-      loadStats();
-
-      // Load other data in parallel without blocking the UI
-      loadPendingApplications();
-      loadPendingDocuments();
-
-      // Track completion after all initial loads
-      setTimeout(() => {
-        finishDashboardLoad();
-      }, 100);
+      // Load all data in parallel for better performance
+      await Promise.allSettled([
+        loadStats(),
+        loadPendingApplications()
+      ]);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      toast.error('Failed to load dashboard data');
     }
-  };
+  }, []);
 
-  // Load stats independently with caching
-  const loadStats = async () => {
+  // Load dashboard data - simplified to prevent duplicate calls
+  useEffect(() => {
+    // Only load if we have a user and auth is not loading
+    if (user && !loading) {
+      refreshDashboardData();
+
+      // Add a safety timeout to prevent infinite loading
+      const loadingTimeout = setTimeout(() => {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Dashboard loading timeout reached, forcing completion');
+        }
+        setStatsLoading(false);
+        setPendingAppsLoading(false);
+      }, 8000); // Reduced to 8 seconds
+
+      return () => clearTimeout(loadingTimeout);
+    } else if (!loading && !user) {
+      // If not loading and no user, show dashboard with error message
+      setStatsLoading(false);
+      setPendingAppsLoading(false);
+    }
+  }, [user, loading]); // Removed refreshDashboardData dependency to prevent re-runs
+
+
+
+  // Load stats independently with simplified error handling
+  const loadStats = useCallback(async () => {
+    // Prevent duplicate calls
+    if (!statsLoading) {
+      setStatsLoading(true);
+    } else {
+      return; // Already loading, skip
+    }
+
     try {
       trackStatsLoad();
-      setStatsLoading(true);
 
       // Check cache first
       const cachedPropertyStats = getCachedPropertyStats();
       const cachedDocumentStats = getCachedDocumentStats();
 
       if (cachedPropertyStats && cachedDocumentStats) {
-        // Use cached data
-        setStats({
-          totalProperties: cachedPropertyStats.totalProperties || 0,
-          pendingProperties: cachedPropertyStats.pendingProperties || 0,
-          approvedProperties: cachedPropertyStats.approvedProperties || 0,
-          rejectedProperties: cachedPropertyStats.rejectedProperties || 0,
-          totalDocuments: cachedDocumentStats.totalDocuments || 0,
-          pendingDocuments: cachedDocumentStats.pendingVerification || 0,
-          verifiedDocuments: cachedDocumentStats.verifiedDocuments || 0,
-          rejectedDocuments: cachedDocumentStats.rejectedDocuments || 0
-        });
-        console.log('📦 Using cached stats data');
-      } else {
-        // Fetch fresh data with dashboard optimization and fallback
-        console.log('🔄 Loading fresh stats data with dashboard optimization...');
+        // Use cached data immediately with proper data mapping
+        const cachedStats = {
+          totalProperties: cachedPropertyStats?.totalProperties || cachedPropertyStats?.total || 0,
+          pendingProperties: cachedPropertyStats?.pendingProperties || cachedPropertyStats?.pending || 0,
+          approvedProperties: cachedPropertyStats?.approvedProperties || cachedPropertyStats?.approved || 0,
+          rejectedProperties: cachedPropertyStats?.rejectedProperties || cachedPropertyStats?.rejected || 0,
+          totalDocuments: cachedDocumentStats?.totalDocuments || cachedDocumentStats?.total || 0,
+          pendingDocuments: cachedDocumentStats?.pendingVerification || cachedDocumentStats?.pending || 0,
+          verifiedDocuments: cachedDocumentStats?.verifiedDocuments || cachedDocumentStats?.verified || 0,
+          rejectedDocuments: cachedDocumentStats?.rejectedDocuments || cachedDocumentStats?.rejected || 0
+        };
 
-        let propertyStats, documentStats;
-
-        try {
-          // Try with dashboard optimization first
-          [propertyStats, documentStats] = await Promise.all([
-            getPropertyStats({ dashboard: true }),
-            getDocumentStats({ dashboard: true })
-          ]);
-        } catch (dashboardError) {
-          console.warn('⚠️ Dashboard-optimized stats failed, falling back to regular stats:', dashboardError);
-
-          // Fallback to regular stats API
-          try {
-            [propertyStats, documentStats] = await Promise.all([
-              getPropertyStats(),
-              getDocumentStats()
-            ]);
-          } catch (fallbackError) {
-            console.error('❌ Both dashboard and regular stats failed:', fallbackError);
-
-            // Use default values if both fail
-            propertyStats = {
-              totalProperties: 0,
-              pendingProperties: 0,
-              approvedProperties: 0,
-              rejectedProperties: 0
-            };
-            documentStats = {
-              totalDocuments: 0,
-              pendingVerification: 0,
-              verifiedDocuments: 0,
-              rejectedDocuments: 0
-            };
-
-            // Show a non-intrusive warning
-            console.warn('📊 Using default stats values due to API errors');
-          }
-        }
-
-        // Cache the results
-        cachePropertyStats(propertyStats);
-        cacheDocumentStats(documentStats);
-
-        setStats({
-          totalProperties: propertyStats.totalProperties || 0,
-          pendingProperties: propertyStats.pendingProperties || 0,
-          approvedProperties: propertyStats.approvedProperties || 0,
-          rejectedProperties: propertyStats.rejectedProperties || 0,
-          totalDocuments: documentStats.totalDocuments || 0,
-          pendingDocuments: documentStats.pendingVerification || 0,
-          verifiedDocuments: documentStats.verifiedDocuments || 0,
-          rejectedDocuments: documentStats.rejectedDocuments || 0
-        });
-
-        console.log('✅ Successfully loaded and cached stats data');
+        setStats(cachedStats);
+        setStatsLoading(false);
+        finishStatsLoad();
+        return;
       }
-    } catch (error) {
-      console.error('❌ Error loading stats:', error);
 
-      // Only show toast for non-timeout errors to avoid spam
-      if (!error.isTimeout && !error.isServerError) {
-        toast.error(error.message || 'Failed to load statistics');
+      // Load fresh data
+      const [propertyStats, documentStats] = await Promise.all([
+        getPropertyStats().catch(error => {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Property stats failed:', error);
+          }
+          return { totalProperties: 0, pendingProperties: 0, approvedProperties: 0, rejectedProperties: 0 };
+        }),
+        getDocumentStats().catch(error => {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Document stats failed:', error);
+          }
+          return { totalDocuments: 0, pendingVerification: 0, verifiedDocuments: 0, rejectedDocuments: 0 };
+        })
+      ]);
+
+      // Cache the results
+      cachePropertyStats(propertyStats);
+      cacheDocumentStats(documentStats);
+
+      // Update state immediately with proper data mapping
+      const newStats = {
+        totalProperties: propertyStats?.totalProperties || propertyStats?.total || 0,
+        pendingProperties: propertyStats?.pendingProperties || propertyStats?.pending || 0,
+        approvedProperties: propertyStats?.approvedProperties || propertyStats?.approved || 0,
+        rejectedProperties: propertyStats?.rejectedProperties || propertyStats?.rejected || 0,
+        totalDocuments: documentStats?.totalDocuments || documentStats?.total || 0,
+        pendingDocuments: documentStats?.pendingVerification || documentStats?.pending || 0,
+        verifiedDocuments: documentStats?.verifiedDocuments || documentStats?.verified || 0,
+        rejectedDocuments: documentStats?.rejectedDocuments || documentStats?.rejected || 0
+      };
+
+      setStats(newStats);
+
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading stats:', error);
       }
 
       // Set default stats to prevent blank dashboard
@@ -286,164 +220,64 @@ const LandOfficerDashboard = () => {
       setStatsLoading(false);
       finishStatsLoad();
     }
-  };
+  }, [statsLoading]);
 
-  // Load pending applications independently with caching
-  const loadPendingApplications = async () => {
-    try {
-      trackPendingAppsLoad();
+  // Load pending applications independently with simplified error handling
+  const loadPendingApplications = useCallback(async () => {
+    // Prevent duplicate calls
+    if (!pendingAppsLoading) {
       setPendingAppsLoading(true);
       setPendingAppsError(null);
+    } else {
+      return; // Already loading, skip
+    }
+
+    try {
+      trackPendingAppsLoad();
 
       // Check cache first
       const cachedData = getCachedPendingProperties();
       if (cachedData) {
         setPendingApplications(cachedData);
-        console.log('📦 Using cached pending applications data');
+        setPendingAppsLoading(false);
+        finishPendingAppsLoad();
         return;
       }
 
-      let pendingAppsResponse;
-
-      try {
-        // First try with dashboard parameter for optimized response
-        console.log('🔄 Attempting to load pending applications with dashboard API...');
-        pendingAppsResponse = await getPendingProperties({ dashboard: true, limit: 10 });
-      } catch (dashboardError) {
-        console.warn('⚠️ Dashboard API failed, falling back to regular API:', dashboardError);
-
-        // Fallback to regular API without dashboard parameter
-        try {
-          pendingAppsResponse = await getPendingProperties({ limit: 10 });
-          // If regular API returns paginated response, extract properties array
-          if (pendingAppsResponse?.properties) {
-            pendingAppsResponse = pendingAppsResponse.properties;
+      // Load fresh data
+      const pendingAppsResponse = await getPendingProperties({ limit: 10 })
+        .catch(error => {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Error loading pending applications:', error);
           }
-        } catch (fallbackError) {
-          throw fallbackError; // Re-throw the fallback error
-        }
-      }
+          setPendingAppsError(error);
+          return [];
+        });
 
-      cachePendingProperties(pendingAppsResponse || []);
-      setPendingApplications(pendingAppsResponse || []);
-      console.log('✅ Successfully loaded pending applications:', pendingAppsResponse?.length || 0, 'items');
+      // Handle response format
+      const applications = pendingAppsResponse?.properties || pendingAppsResponse || [];
+
+      // Cache and update state immediately
+      cachePendingProperties(applications);
+      setPendingApplications(applications);
 
     } catch (error) {
-      console.error('❌ Error loading pending applications:', error);
-      setPendingAppsError(error);
-
-      // Enhanced error handling for different error types
-      if (error.isTimeout) {
-        console.log('Pending applications request timed out, using empty array');
-        // Don't show error toast for timeouts, just log and continue
-        setPendingApplications([]);
-      } else if (error.isServerError) {
-        console.log('Server error loading pending applications, using empty array');
-        setPendingApplications([]);
-      } else {
-        toast.error(error.message || 'Failed to load pending applications');
-        setPendingApplications([]);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading pending applications:', error);
       }
+      setPendingAppsError(error);
+      setPendingApplications([]);
     } finally {
       setPendingAppsLoading(false);
       finishPendingAppsLoad();
     }
-  };
-
-  // Load pending documents independently with caching
-  const loadPendingDocuments = async () => {
-    try {
-      trackPendingDocsLoad();
-      setPendingDocsLoading(true);
-      setPendingDocsError(null);
-
-      // Check cache first
-      const cachedData = getCachedPendingDocuments();
-      if (cachedData) {
-        setPendingDocuments(cachedData);
-        console.log('📦 Using cached pending documents data');
-        return;
-      }
-
-      let pendingDocsResponse;
-
-      try {
-        // First try with dashboard parameter for optimized response
-        console.log('🔄 Attempting to load pending documents with dashboard API...');
-        pendingDocsResponse = await getPendingDocuments({ dashboard: true, limit: 10 });
-      } catch (dashboardError) {
-        console.warn('⚠️ Dashboard API failed, falling back to regular API:', dashboardError);
-
-        // Fallback to regular API without dashboard parameter
-        try {
-          pendingDocsResponse = await getPendingDocuments({ limit: 10 });
-          // If regular API returns paginated response, extract documents array
-          if (pendingDocsResponse?.documents) {
-            pendingDocsResponse = pendingDocsResponse.documents;
-          }
-        } catch (fallbackError) {
-          throw fallbackError; // Re-throw the fallback error
-        }
-      }
-
-      cachePendingDocuments(pendingDocsResponse || []);
-      setPendingDocuments(pendingDocsResponse || []);
-      console.log('✅ Successfully loaded pending documents:', pendingDocsResponse?.length || 0, 'items');
-
-    } catch (error) {
-      console.error('❌ Error loading pending documents:', error);
-      setPendingDocsError(error);
-
-      // Enhanced error handling for different error types
-      if (error.isTimeout) {
-        console.log('Pending documents request timed out, using empty array');
-        // Don't show error toast for timeouts, just log and continue
-        setPendingDocuments([]);
-      } else if (error.isServerError) {
-        console.log('Server error loading pending documents, using empty array');
-        setPendingDocuments([]);
-      } else {
-        toast.error(error.message || 'Failed to load pending documents');
-        setPendingDocuments([]);
-      }
-    } finally {
-      setPendingDocsLoading(false);
-      finishPendingDocsLoad();
-    }
-  };
+  }, [pendingAppsLoading]);
 
 
 
-  // Handle document verification/rejection
-  const handleDocumentAction = async () => {
-    try {
-      if (actionType === 'approve') {
-        await verifyDocument(selectedDocument._id, notes);
-        toast.success('Document verified successfully');
-      } else {
-        await rejectDocument(selectedDocument._id, notes);
-        toast.success('Document rejected successfully');
-      }
 
-      setShowDocumentModal(false);
-      setSelectedDocument(null);
-      setNotes('');
-      // Invalidate caches and refresh data
-      invalidateDocumentCaches();
-      loadPendingDocuments();
-      loadStats();
-    } catch (error) {
-      console.error('Error processing document:', error);
-      toast.error(error.message || 'Failed to process document');
-    }
-  };
 
-  // Open document modal
-  const openDocumentModal = (document, action) => {
-    setSelectedDocument(document);
-    setActionType(action);
-    setShowDocumentModal(true);
-  };
+
 
   // Show loading skeleton only if AuthContext is still loading AND we don't have user data
   if (loading && !user) {
@@ -502,7 +336,6 @@ const LandOfficerDashboard = () => {
   }
 
   // Always render the dashboard, but show appropriate content based on user state
-  const isValidLandOfficer = user && user.role === 'landOfficer';
   const showAuthError = !loading && !user;
   const showRoleError = !loading && user && user.role !== 'landOfficer';
 
@@ -555,7 +388,7 @@ const LandOfficerDashboard = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-xl font-semibold">Welcome, {user?.fullName || 'Officer'}</h2>
-            <p className="text-gray-600">Manage property applications and documents</p>
+            <p className="text-gray-600">Manage property applications and registrations</p>
           </div>
           <div className="mt-4 md:mt-0 flex space-x-4">
             <Link
@@ -565,13 +398,6 @@ const LandOfficerDashboard = () => {
               <DocumentTextIcon className="h-5 w-5 mr-1" />
               View Pending Applications
             </Link>
-            <Link
-              to="/landofficer/document-validation"
-              className="bg-ethiopian-yellow text-gray-900 px-4 py-2 rounded-md hover:bg-opacity-90 transition-colors flex items-center"
-            >
-              <DocumentMagnifyingGlassIcon className="h-5 w-5 mr-1" />
-              Verify Documents
-            </Link>
           </div>
         </div>
       </div>
@@ -579,14 +405,14 @@ const LandOfficerDashboard = () => {
       {/* Dashboard Search */}
       <div className="mb-8">
         <DashboardSearch
-          placeholder="Search applications, documents, properties..."
+          placeholder="Search applications, properties..."
           searchType="landOfficer"
           className="w-full"
         />
       </div>
 
-      {/* Loading Progress Indicator */}
-      {(statsLoading || pendingAppsLoading || pendingDocsLoading) && (
+      {/* Loading Progress Indicator - Only show if actually loading */}
+      {(statsLoading || pendingAppsLoading) && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <div className="flex items-center">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
@@ -594,26 +420,25 @@ const LandOfficerDashboard = () => {
               Loading dashboard data...
               {statsLoading && <span className="ml-2">📊 Statistics</span>}
               {pendingAppsLoading && <span className="ml-2">🏠 Applications</span>}
-              {pendingDocsLoading && <span className="ml-2">📋 Documents</span>}
             </div>
           </div>
         </div>
       )}
 
       {/* Dashboard Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center mb-2">
             <DocumentTextIcon className="h-6 w-6 text-primary mr-2" />
             <h3 className="text-lg font-semibold">Pending Applications</h3>
           </div>
-          <p className="text-3xl font-bold text-primary">
+          <div className="text-3xl font-bold text-primary">
             {statsLoading ? (
               <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
             ) : (
               stats.pendingProperties || 0
             )}
-          </p>
+          </div>
           <p className="text-gray-600 mt-1">Awaiting review</p>
         </div>
 
@@ -622,29 +447,14 @@ const LandOfficerDashboard = () => {
             <ClockIcon className="h-6 w-6 text-blue-600 mr-2" />
             <h3 className="text-lg font-semibold">Under Review</h3>
           </div>
-          <p className="text-3xl font-bold text-blue-600">
+          <div className="text-3xl font-bold text-blue-600">
             {pendingAppsLoading ? (
               <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
             ) : (
               pendingApplications.filter(app => app.status === 'under_review').length || 0
             )}
-          </p>
-          <p className="text-gray-600 mt-1">Applications in progress</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center mb-2">
-            <DocumentMagnifyingGlassIcon className="h-6 w-6 text-yellow-600 mr-2" />
-            <h3 className="text-lg font-semibold">Documents</h3>
           </div>
-          <p className="text-3xl font-bold text-yellow-600">
-            {statsLoading ? (
-              <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
-            ) : (
-              stats.pendingDocuments || 0
-            )}
-          </p>
-          <p className="text-gray-600 mt-1">Pending verification</p>
+          <p className="text-gray-600 mt-1">Applications in progress</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -652,13 +462,13 @@ const LandOfficerDashboard = () => {
             <CheckCircleIcon className="h-6 w-6 text-green-600 mr-2" />
             <h3 className="text-lg font-semibold">Approved</h3>
           </div>
-          <p className="text-3xl font-bold text-green-600">
+          <div className="text-3xl font-bold text-green-600">
             {statsLoading ? (
               <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
             ) : (
               stats.approvedProperties || 0
             )}
-          </p>
+          </div>
           <p className="text-gray-600 mt-1">Properties verified</p>
         </div>
       </div>
@@ -809,19 +619,11 @@ const LandOfficerDashboard = () => {
           <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
           <div className="space-y-3">
             <Link
-              to="/land-officer/property-verification"
+              to="/landofficer/property-verification"
               className="block w-full p-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-center"
             >
               <DocumentTextIcon className="h-5 w-5 mx-auto mb-1" />
               <span className="text-sm">Verify Properties</span>
-            </Link>
-
-            <Link
-              to="/land-officer/document-management"
-              className="block w-full p-3 bg-secondary text-white rounded-lg hover:bg-secondary-dark transition-colors text-center"
-            >
-              <DocumentMagnifyingGlassIcon className="h-5 w-5 mx-auto mb-1" />
-              <span className="text-sm">Review Documents</span>
             </Link>
 
             <Link
@@ -832,136 +634,6 @@ const LandOfficerDashboard = () => {
               <span className="text-sm">Verify Payments</span>
             </Link>
           </div>
-        </div>
-      </div>
-
-      {/* Documents Pending Verification */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h3 className="text-lg font-semibold mb-4">Documents Pending Verification</h3>
-        {pendingDocsLoading ? (
-          <div className="space-y-4">
-            {[...Array(3)].map((_, index) => (
-              <div key={index} className="animate-pulse">
-                <div className="flex space-x-4">
-                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : pendingDocsError && pendingDocsError.isTimeout ? (
-          <div className="text-center py-8">
-            <ClockIcon className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Request Timed Out</h3>
-            <p className="text-gray-500 mb-4">
-              Loading pending documents is taking longer than expected.
-            </p>
-            <button
-              onClick={loadPendingDocuments}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-            >
-              <ClockIcon className="h-4 w-4 mr-2" />
-              Try Again
-            </button>
-          </div>
-        ) : pendingDocuments.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No pending documents found</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Document ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Property ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Applicant
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Document Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Document Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Upload Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {pendingDocuments.slice(0, 5).map((document) => (
-                  <tr key={document._id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {document._id?.slice(-8) || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {document.property?._id?.slice(-8) || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {document.owner?.fullName || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {getDocumentTypeDisplay(document.documentType)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {document.documentName || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(document.status)} capitalize`}>
-                        {document.status?.replace('_', ' ') || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(document.uploadDate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => openDocumentModal(document, 'approve')}
-                          className="text-green-600 hover:text-green-800"
-                          title="Verify"
-                        >
-                          <CheckCircleIcon className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => openDocumentModal(document, 'reject')}
-                          className="text-red-600 hover:text-red-800"
-                          title="Reject"
-                        >
-                          <XCircleIcon className="h-5 w-5" />
-                        </button>
-                        <Link
-                          to="/landofficer/document-validation"
-                          className="text-primary hover:text-primary-dark"
-                          title="View Details"
-                        >
-                          <DocumentMagnifyingGlassIcon className="h-5 w-5" />
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <div className="mt-4 text-right">
-          <Link to="/landofficer/document-validation" className="text-primary hover:underline">
-            View All Pending Documents
-          </Link>
         </div>
       </div>
 
@@ -976,26 +648,14 @@ const LandOfficerDashboard = () => {
             </div>
             <p className="text-gray-600 text-sm">
               Verify property ownership details to ensure compliance with legal standards.
-              Review submitted property information and supporting documents.
+              Review submitted property information and registration details.
             </p>
             <Link to="/landofficer/property-verification" className="mt-3 inline-block text-primary hover:underline text-sm">
               Access Verification Tools
             </Link>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center mb-3">
-              <DocumentTextIcon className="h-6 w-6 text-primary mr-2" />
-              <h4 className="font-semibold">Document Validation</h4>
-            </div>
-            <p className="text-gray-600 text-sm">
-              Validate uploaded documents to confirm they meet legal and system requirements.
-              Check document authenticity, format, and completeness.
-            </p>
-            <Link to="/landofficer/document-validation" className="mt-3 inline-block text-primary hover:underline text-sm">
-              Validate Documents
-            </Link>
-          </div>
+
 
           <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
             <div className="flex items-center mb-3">
@@ -1045,60 +705,7 @@ const LandOfficerDashboard = () => {
 
 
 
-      {/* Document Verification/Rejection Modal */}
-      {showDocumentModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
-            <div className="mt-3 text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {actionType === 'approve' ? 'Verify Document' : 'Reject Document'}
-              </h3>
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  Document ID: {selectedDocument?._id?.slice(-8)}
-                </p>
-                <p className="text-sm text-gray-600 mb-2">
-                  Type: {getDocumentTypeDisplay(selectedDocument?.documentType)}
-                </p>
-                <p className="text-sm text-gray-600 mb-4">
-                  Owner: {selectedDocument?.owner?.fullName}
-                </p>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder={actionType === 'approve' ? 'Add verification notes (optional)' : 'Reason for rejection (required)'}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                  rows="4"
-                  required={actionType === 'reject'}
-                />
-              </div>
-              <div className="flex justify-center space-x-4">
-                <button
-                  onClick={() => {
-                    setShowDocumentModal(false);
-                    setSelectedDocument(null);
-                    setNotes('');
-                  }}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDocumentAction}
-                  disabled={actionType === 'reject' && !notes.trim()}
-                  className={`px-4 py-2 rounded-md text-white ${
-                    actionType === 'approve'
-                      ? 'bg-green-600 hover:bg-green-700'
-                      : 'bg-red-600 hover:bg-red-700'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {actionType === 'approve' ? 'Verify' : 'Reject'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

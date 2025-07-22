@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { 
-  DocumentTextIcon, 
-  EyeIcon, 
+import api from '../../services/api';
+import {
+  DocumentTextIcon,
+  EyeIcon,
   ArrowDownTrayIcon,
   FunnelIcon,
   MagnifyingGlassIcon
@@ -23,23 +24,14 @@ const PaymentHistory = ({ propertyId = null, userId = null }) => {
 
   const fetchPayments = async () => {
     try {
-      let endpoint = '/api/payments/user';
+      let endpoint = '/payments/user';
       if (propertyId) {
-        endpoint = `/api/payments/property/${propertyId}`;
+        endpoint = `/payments/property/${propertyId}`;
       }
 
-      const response = await fetch(endpoint, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setPayments(Array.isArray(result) ? result : result.payments || []);
-      } else {
-        toast.error('Failed to fetch payment history');
-      }
+      const response = await api.get(endpoint);
+      const result = response.data;
+      setPayments(Array.isArray(result) ? result : result.payments || []);
     } catch (error) {
       console.error('Error fetching payments:', error);
       toast.error('Error loading payment history');
@@ -50,17 +42,11 @@ const PaymentHistory = ({ propertyId = null, userId = null }) => {
 
   const handleDownloadReceipt = async (paymentId) => {
     try {
-      const response = await fetch(`/api/payments/${paymentId}/receipt`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      const response = await api.get(`/payments/${paymentId}/receipt`);
+      const receiptData = response.data;
 
-      if (response.ok) {
-        const receiptData = await response.json();
-        
-        // Create downloadable receipt
-        const receiptContent = `
+      // Create downloadable receipt
+      const receiptContent = `
 PAYMENT RECEIPT
 ===============
 
@@ -80,22 +66,19 @@ Email: ${receiptData.receipt.customer.email}
 
 Ethiopian Land Registry Authority
 Generated: ${new Date().toLocaleString()}
-        `;
-        
-        const blob = new Blob([receiptContent], { type: 'text/plain' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `receipt-${receiptData.receipt.receiptNumber}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        toast.success('Receipt downloaded successfully');
-      } else {
-        toast.error('Failed to download receipt');
-      }
+      `;
+
+      const blob = new Blob([receiptContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `receipt-${receiptData.receipt.receiptNumber}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Receipt downloaded successfully');
     } catch (error) {
       console.error('Error downloading receipt:', error);
       toast.error('Error downloading receipt');

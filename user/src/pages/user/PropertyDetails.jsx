@@ -66,14 +66,39 @@ const PropertyDetails = () => {
     }
   };
 
-  // Load property data function
-  const loadProperty = async () => {
+  // Unified data loading function to ensure consistency
+  const loadPropertyData = async () => {
     try {
       setLoading(true);
-      const propertyData = await getPropertyById(id);
-      setProperty(propertyData);
+
+      // Load property and payment requirements in parallel
+      const [propertyData, paymentRequirementsResponse] = await Promise.allSettled([
+        getPropertyById(id),
+        api.get(`/properties/${id}/payment-requirements`)
+      ]);
+
+      // Handle property data
+      if (propertyData.status === 'fulfilled') {
+        setProperty(propertyData.value);
+      } else {
+        console.error('Error fetching property:', propertyData.reason);
+        setError('Failed to load property details');
+        toast.error('Failed to load property details');
+        return;
+      }
+
+      // Handle payment requirements
+      if (paymentRequirementsResponse.status === 'fulfilled') {
+        setPaymentRequirements(paymentRequirementsResponse.value.data);
+      } else {
+        console.error('Error fetching payment requirements:', paymentRequirementsResponse.reason);
+        // Only show error toast if it's not a 404 (property not found)
+        if (paymentRequirementsResponse.reason?.response?.status !== 404) {
+          toast.error('Failed to fetch payment requirements');
+        }
+      }
     } catch (error) {
-      console.error('Error fetching property:', error);
+      console.error('Error loading property data:', error);
       setError('Failed to load property details');
       toast.error('Failed to load property details');
     } finally {
@@ -81,25 +106,39 @@ const PropertyDetails = () => {
     }
   };
 
-  // Fetch payment requirements
-  const fetchPaymentRequirements = async () => {
-    try {
-      const response = await api.get(`/properties/${id}/payment-requirements`);
-      setPaymentRequirements(response.data);
-    } catch (error) {
-      console.error('Error fetching payment requirements:', error);
-      // Only show error toast if it's not a 404 (property not found)
-      if (error.response?.status !== 404) {
-        toast.error('Failed to fetch payment requirements');
-      }
-    }
-  };
+  // Legacy functions for backward compatibility
+  const loadProperty = loadPropertyData;
+  const fetchPaymentRequirements = loadPropertyData;
 
   // Handle payment initiated
   const handlePaymentInitiated = (paymentResult) => {
     toast.success('Payment initiated successfully');
-    // Refresh payment requirements
-    fetchPaymentRequirements();
+    // Refresh all data to ensure consistency
+    loadPropertyData();
+  };
+
+  // Get consistent payment status from multiple data sources
+  const getPaymentStatus = () => {
+    if (!property || !paymentRequirements) {
+      return 'pending';
+    }
+
+    // Use payment requirements as primary source of truth
+    const { workflowStatus } = paymentRequirements;
+
+    if (workflowStatus.paymentCompleted || property.paymentCompleted) {
+      return 'completed';
+    }
+
+    if (property.status === 'payment_pending') {
+      return 'processing';
+    }
+
+    if (workflowStatus.paymentRequired && workflowStatus.documentsValidated) {
+      return 'required';
+    }
+
+    return 'pending';
   };
 
   // Get workflow steps for progress indicator
@@ -143,8 +182,7 @@ const PropertyDetails = () => {
   // Fetch property data on component mount
   useEffect(() => {
     if (id) {
-      loadProperty();
-      fetchPaymentRequirements();
+      loadPropertyData();
     }
   }, [id]);
 
@@ -270,11 +308,10 @@ const PropertyDetails = () => {
             </span>
             {paymentRequirements && (
               <PaymentStatusIndicator
-                status={property.paymentCompleted ? 'completed' :
-                        paymentRequirements.workflowStatus.paymentRequired ? 'required' : 'pending'}
+                status={getPaymentStatus()}
                 amount={paymentRequirements.paymentInfo.totalPaid}
                 size="sm"
-                showAmount={property.paymentCompleted}
+                showAmount={getPaymentStatus() === 'completed'}
               />
             )}
             <Link
@@ -384,23 +421,13 @@ const PropertyDetails = () => {
             </button>
             <button
               className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                activeTab === 'payments'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-              onClick={() => setActiveTab('payments')}
-            >
-              Payments
-            </button>
-            <button
-              className={`py-2 px-4 border-b-2 font-medium text-sm ${
                 activeTab === 'payment'
                   ? 'border-primary text-primary'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
               onClick={() => setActiveTab('payment')}
             >
-              Payment
+              Payment & History
             </button>
             <button
               className={`py-2 px-4 border-b-2 font-medium text-sm ${
@@ -493,7 +520,7 @@ const PropertyDetails = () => {
           </div>
         )}
 
-        {activeTab === 'payments' && (
+        {false && activeTab === 'payments' && (
           <div>
             <h2 className="text-lg font-semibold mb-4">Payments</h2>
 

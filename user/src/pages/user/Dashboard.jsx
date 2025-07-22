@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BellIcon, DocumentTextIcon, HomeIcon, CurrencyDollarIcon, MagnifyingGlassIcon, TrashIcon, PencilIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
@@ -72,31 +72,8 @@ const UserDashboard = () => {
       setShowDeleteModal(false);
       setSelectedProperty(null);
 
-      // Reload properties
-      const response = await getUserProperties();
-      const propertiesArray = response?.properties || [];
-      setProperties(propertiesArray);
-
-      // Update stats
-      const totalPayments = propertiesArray.reduce((total, property) => {
-        if (property.paymentCompleted || property.status === 'payment_completed') {
-          return total + 1;
-        }
-        return total;
-      }, 0);
-
-      const realStats = {
-        totalProperties: propertiesArray.length,
-        pendingApplications: propertiesArray.filter(prop =>
-          prop.status === 'pending' ||
-          prop.status === 'documents_pending' ||
-          prop.status === 'documents_validated' ||
-          prop.status === 'payment_pending'
-        ).length,
-        completedApplications: propertiesArray.filter(prop => prop.status === 'approved').length,
-        totalPayments: totalPayments
-      };
-      setDashboardStats(realStats);
+      // Reload dashboard data using centralized function
+      await refreshDashboardData();
 
       toast.success('Property application deleted successfully');
     } catch (error) {
@@ -113,8 +90,7 @@ const UserDashboard = () => {
   // Handle document changes (refresh property data)
   const handleDocumentChange = async () => {
     try {
-      const userProperties = await getUserProperties();
-      setProperties(userProperties || []);
+      await refreshDashboardData();
     } catch (error) {
       console.error('Error refreshing properties:', error);
     }
@@ -136,32 +112,9 @@ const UserDashboard = () => {
     setShowEditModal(false);
     setSelectedProperty(null);
 
-    // Reload properties
+    // Reload dashboard data using centralized function
     try {
-      const response = await getUserProperties();
-      const propertiesArray = response?.properties || [];
-      setProperties(propertiesArray);
-
-      // Update stats
-      const totalPayments = propertiesArray.reduce((total, property) => {
-        if (property.paymentCompleted || property.status === 'payment_completed') {
-          return total + 1;
-        }
-        return total;
-      }, 0);
-
-      const realStats = {
-        totalProperties: propertiesArray.length,
-        pendingApplications: propertiesArray.filter(prop =>
-          prop.status === 'pending' ||
-          prop.status === 'documents_pending' ||
-          prop.status === 'documents_validated' ||
-          prop.status === 'payment_pending'
-        ).length,
-        completedApplications: propertiesArray.filter(prop => prop.status === 'approved').length,
-        totalPayments: totalPayments
-      };
-      setDashboardStats(realStats);
+      await refreshDashboardData();
     } catch (error) {
       console.error('Error refreshing properties:', error);
     }
@@ -175,6 +128,99 @@ const UserDashboard = () => {
     };
   }, []);
 
+  // Calculate dashboard statistics from properties data
+  const calculateDashboardStats = useCallback((propertiesArray) => {
+    // Calculate total payment amount from properties with payments
+    const totalPaymentAmount = propertiesArray.reduce((total, property) => {
+      if (property.payments && Array.isArray(property.payments)) {
+        // Sum up payment amounts if available
+        const propertyPayments = property.payments.reduce((sum, payment) => {
+          return sum + (payment.amount || 0);
+        }, 0);
+        return total + propertyPayments;
+      }
+      return total;
+    }, 0);
+
+    return {
+      totalProperties: propertiesArray.length,
+      pendingApplications: propertiesArray.filter(prop =>
+        prop.status === 'pending' ||
+        prop.status === 'documents_pending' ||
+        prop.status === 'documents_validated' ||
+        prop.status === 'payment_pending'
+      ).length,
+      completedApplications: propertiesArray.filter(prop => prop.status === 'approved').length,
+      totalPayments: totalPaymentAmount
+    };
+  }, []);
+
+  // Centralized function to load and update dashboard data
+  const loadDashboardData = async () => {
+    try {
+      // Fetch user's properties
+      const propertiesArray = await getUserProperties();
+      console.log('Fetched user properties:', propertiesArray);
+
+      // Set properties data
+      setProperties(propertiesArray);
+
+      // Calculate and set dashboard stats
+      const stats = calculateDashboardStats(propertiesArray);
+      setDashboardStats(stats);
+
+      // Add welcome notification (only once per hour)
+      if (user) {
+        const lastWelcomeKey = `lastWelcome_${user._id || user.id}`;
+        const lastWelcomeTime = localStorage.getItem(lastWelcomeKey);
+        const now = new Date().getTime();
+        const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+
+        if (!lastWelcomeTime || (now - parseInt(lastWelcomeTime)) > oneHour) {
+          addNotification({
+            title: 'Welcome back!',
+            message: `Hello ${user.fullName}, welcome to your property dashboard.`,
+            type: 'info',
+            showToast: false
+          });
+          localStorage.setItem(lastWelcomeKey, now.toString());
+        }
+      }
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+      // Set empty arrays as fallback
+      setProperties([]);
+      setDashboardStats({
+        totalProperties: 0,
+        pendingApplications: 0,
+        completedApplications: 0,
+        totalPayments: 0
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to refresh dashboard data without showing loading state
+  const refreshDashboardData = async () => {
+    try {
+      // Fetch user's properties
+      const propertiesArray = await getUserProperties();
+      console.log('Refreshed user properties:', propertiesArray);
+
+      // Set properties data
+      setProperties(propertiesArray);
+
+      // Calculate and set dashboard stats
+      const stats = calculateDashboardStats(propertiesArray);
+      setDashboardStats(stats);
+    } catch (error) {
+      console.error('Error refreshing dashboard data:', error);
+      throw error; // Re-throw to allow calling functions to handle the error
+    }
+  };
+
   // Check authentication and load dashboard data
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -182,77 +228,8 @@ const UserDashboard = () => {
       return;
     }
 
-    const loadDashboardData = async () => {
-      try {
-        // Fetch user's properties
-        const response = await getUserProperties();
-        console.log('Fetched user properties response:', response);
-
-        // Extract properties array from response
-        const propertiesArray = response?.properties || [];
-        setProperties(propertiesArray);
-
-        // Calculate stats based on actual data
-        const totalPayments = propertiesArray.reduce((total, property) => {
-          // Count properties that have completed payments
-          if (property.paymentCompleted || property.status === 'payment_completed') {
-            return total + 1;
-          }
-          return total;
-        }, 0);
-
-        const realStats = {
-          totalProperties: propertiesArray.length,
-          pendingApplications: propertiesArray.filter(prop =>
-            prop.status === 'pending' ||
-            prop.status === 'documents_pending' ||
-            prop.status === 'documents_validated' ||
-            prop.status === 'payment_pending'
-          ).length,
-          completedApplications: propertiesArray.filter(prop => prop.status === 'approved').length,
-          totalPayments: totalPayments
-        };
-
-        setDashboardStats(realStats);
-
-        // Add a welcome notification when the dashboard loads (only if user exists and no recent welcome notification)
-        if (user) {
-          // Check localStorage for the last welcome notification timestamp for this user
-          const lastWelcomeKey = `lastWelcome_${user._id || user.id}`;
-          const lastWelcomeTime = localStorage.getItem(lastWelcomeKey);
-          const now = new Date().getTime();
-          const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
-
-          // Only add welcome notification if more than 1 hour has passed since the last one
-          if (!lastWelcomeTime || (now - parseInt(lastWelcomeTime)) > oneHour) {
-            addNotification({
-              title: 'Welcome back!',
-              message: `Hello ${user.fullName}, welcome to your property dashboard.`,
-              type: 'info',
-              showToast: false
-            });
-
-            // Store the current timestamp to prevent duplicate notifications
-            localStorage.setItem(lastWelcomeKey, now.toString());
-          }
-        }
-      } catch (error) {
-        toast.error('Failed to load dashboard data');
-        // Set empty arrays as fallback
-        setProperties([]);
-        setDashboardStats({
-          totalProperties: 0,
-          pendingApplications: 0,
-          completedApplications: 0,
-          totalPayments: 0
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadDashboardData();
-  }, [isAuthenticated, navigate, user]); // Removed addNotification from dependencies
+  }, [isAuthenticated, navigate]); // Removed user dependency to prevent duplicate calls
 
   // Import the LoadingSpinner component
   const LoadingSpinner = React.lazy(() => import('../../components/common/LoadingSpinner'));

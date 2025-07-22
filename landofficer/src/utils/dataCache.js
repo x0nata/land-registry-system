@@ -99,9 +99,9 @@ export const CACHE_KEYS = {
 
 // Cache TTL configurations (in milliseconds)
 export const CACHE_TTL = {
-  STATS: 2 * 60 * 1000,        // 2 minutes for stats
-  PENDING_DATA: 1 * 60 * 1000,  // 1 minute for pending items
-  ACTIVITIES: 30 * 1000         // 30 seconds for activities
+  STATS: 3 * 60 * 1000,        // 3 minutes for stats (increased for better performance)
+  PENDING_DATA: 2 * 60 * 1000,  // 2 minutes for pending items (increased for better performance)
+  ACTIVITIES: 60 * 1000         // 1 minute for activities (increased for better performance)
 };
 
 // Helper functions for common operations
