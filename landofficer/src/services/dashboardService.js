@@ -1,75 +1,160 @@
-// Optimized dashboard service for fast loading
+// Real data only dashboard service - no demo/static data
 import { dashboardApi } from './api';
+import {
+  getCachedPropertyStats,
+  cachePropertyStats,
+  getCachedPendingProperties,
+  cachePendingProperties,
+  CACHE_KEYS
+} from '../utils/dataCache';
 
-// Get all dashboard statistics in one optimized call
+// Get dashboard statistics - real data only
 export const getDashboardStats = async () => {
   try {
-    const response = await dashboardApi.get('/reports/dashboard-stats');
-    return response.data;
+    // Check cache first
+    const cachedStats = getCachedPropertyStats();
+    if (cachedStats) {
+      console.log('Using cached real dashboard stats');
+      return cachedStats;
+    }
+
+    // Try to get real data from authenticated endpoints
+    const [pendingResponse, allPropertiesResponse] = await Promise.allSettled([
+      dashboardApi.get('/properties/pending'),
+      dashboardApi.get('/properties')
+    ]);
+
+    let realStats = null;
+
+    // Process pending properties
+    if (pendingResponse.status === 'fulfilled' && pendingResponse.value?.data) {
+      const pendingData = Array.isArray(pendingResponse.value.data)
+        ? pendingResponse.value.data
+        : pendingResponse.value.data.properties || [];
+
+      if (pendingData.length > 0 || pendingResponse.value.data.total !== undefined) {
+        realStats = {
+          properties: {
+            total: 0,
+            pending: pendingData.length,
+            approved: 0,
+            rejected: 0
+          },
+          documents: {
+            total: 0,
+            pending: 0,
+            verified: 0,
+            rejected: 0
+          }
+        };
+      }
+    }
+
+    // Process all properties
+    if (allPropertiesResponse.status === 'fulfilled' && allPropertiesResponse.value?.data) {
+      const allData = Array.isArray(allPropertiesResponse.value.data)
+        ? allPropertiesResponse.value.data
+        : allPropertiesResponse.value.data.properties || [];
+
+      if (allData.length > 0) {
+        if (!realStats) {
+          realStats = {
+            properties: { total: 0, pending: 0, approved: 0, rejected: 0 },
+            documents: { total: 0, pending: 0, verified: 0, rejected: 0 }
+          };
+        }
+
+        realStats.properties.total = allData.length;
+
+        // Count by status
+        const statusCounts = allData.reduce((acc, prop) => {
+          acc[prop.status] = (acc[prop.status] || 0) + 1;
+          return acc;
+        }, {});
+
+        realStats.properties.approved = statusCounts.approved || 0;
+        realStats.properties.rejected = statusCounts.rejected || 0;
+        realStats.properties.pending = statusCounts.pending || 0;
+      }
+    }
+
+    // Only return and cache if we have real data
+    if (realStats) {
+      cachePropertyStats(realStats);
+      return realStats;
+    }
+
+    // No real data available
+    throw new Error('No real data available from API');
+
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
 
-    // Return fallback data immediately on any error
-    return {
-      properties: {
-        total: 45,
-        pending: 12,
-        approved: 28,
-        rejected: 5
-      },
-      documents: {
-        total: 150,
-        pending: 25,
-        verified: 120,
-        rejected: 5
-      },
-      message: "Using fallback data due to API error"
-    };
+    // Try to return cached real data as fallback
+    const cachedStats = getCachedPropertyStats();
+    if (cachedStats) {
+      console.log('API failed, using cached real data');
+      return cachedStats;
+    }
+
+    // No real data available at all
+    throw new Error('Unable to load real dashboard data');
   }
 };
 
-// Get pending properties with pagination (optimized)
+// Get pending properties - real data only
 export const getPendingPropertiesFast = async (limit = 10, page = 1) => {
   try {
+    // Check cache first
+    const cachedData = getCachedPendingProperties();
+    if (cachedData) {
+      console.log('Using cached real pending properties');
+      return cachedData;
+    }
+
     const response = await dashboardApi.get('/properties/pending', {
-      params: {
-        limit,
-        page,
-        dashboard: true // Use optimized dashboard query
-      }
+      params: { limit, page }
     });
 
-    return response.data;
+    // Handle different response formats
+    const data = response.data;
+    let realData = null;
+
+    if (Array.isArray(data) && data.length > 0) {
+      realData = {
+        properties: data.slice(0, limit),
+        total: data.length
+      };
+    } else if (data.properties && Array.isArray(data.properties)) {
+      realData = data;
+    } else if (data.total !== undefined) {
+      // Even if no properties, if we get a total count, it's real data
+      realData = {
+        properties: [],
+        total: data.total || 0
+      };
+    }
+
+    // Only cache and return if we have real data
+    if (realData) {
+      cachePendingProperties(realData);
+      return realData;
+    }
+
+    throw new Error('No real pending properties data available');
+
   } catch (error) {
     console.error('Error fetching pending properties:', error);
 
-    // Return sample data for demo
-    return {
-      properties: [
-        {
-          _id: 'demo1',
-          owner: { fullName: 'John Doe' },
-          plotNumber: 'PLT-001',
-          location: { subCity: 'Addis Ketema', kebele: '05' },
-          propertyType: 'residential',
-          status: 'pending',
-          registrationDate: new Date().toISOString()
-        },
-        {
-          _id: 'demo2',
-          owner: { fullName: 'Jane Smith' },
-          plotNumber: 'PLT-002',
-          location: { subCity: 'Bole', kebele: '03' },
-          propertyType: 'commercial',
-          status: 'under_review',
-          registrationDate: new Date(Date.now() - 86400000).toISOString()
-        }
-      ],
-      total: 2,
-      page: 1,
-      totalPages: 1,
-      message: "Using sample data due to API error"
-    };
+    // Try to return cached real data as fallback
+    const cachedData = getCachedPendingProperties();
+    if (cachedData) {
+      console.log('API failed, using cached real pending properties');
+      return cachedData;
+    }
+
+    // No real data available at all
+    throw new Error('Unable to load real pending properties data');
   }
 };
 

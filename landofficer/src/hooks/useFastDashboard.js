@@ -18,7 +18,7 @@ export const useFastDashboard = () => {
   const [statsError, setStatsError] = useState(null);
   const [pendingAppsError, setPendingAppsError] = useState(null);
 
-  // Load dashboard stats (super fast)
+  // Load dashboard stats - real data only
   const loadStats = useCallback(async () => {
     if (statsLoading) return; // Prevent duplicate calls
 
@@ -26,18 +26,23 @@ export const useFastDashboard = () => {
     setStatsError(null);
 
     try {
-      // Use real API call with fallback
       const data = await getDashboardStats();
       setStats(data);
+      setStatsError(null);
     } catch (error) {
+      console.error('Failed to load real dashboard stats:', error);
       setStatsError(error);
-      // Keep fallback data from service
+      // Do not set any fallback data - only show real data
+      setStats({
+        properties: { total: 0, pending: 0, approved: 0, rejected: 0 },
+        documents: { total: 0, pending: 0, verified: 0, rejected: 0 }
+      });
     } finally {
       setStatsLoading(false);
     }
   }, [statsLoading]);
 
-  // Load pending applications (optimized)
+  // Load pending applications - real data only
   const loadPendingApplications = useCallback(async (limit = 10) => {
     if (pendingAppsLoading) return; // Prevent duplicate calls
 
@@ -45,12 +50,14 @@ export const useFastDashboard = () => {
     setPendingAppsError(null);
 
     try {
-      // Use real API call with fallback
       const data = await getPendingPropertiesFast(limit);
-      setPendingApplications(data.properties || data || []);
+      setPendingApplications(data.properties || []);
+      setPendingAppsError(null);
     } catch (error) {
+      console.error('Failed to load real pending applications:', error);
       setPendingAppsError(error);
-      // Keep sample data from service
+      // Do not set any fallback data - only show real data
+      setPendingApplications([]);
     } finally {
       setPendingAppsLoading(false);
     }

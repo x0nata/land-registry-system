@@ -5,14 +5,37 @@ class DataCache {
     this.defaultTTL = 5 * 60 * 1000; // 5 minutes default TTL
   }
 
-  // Set data in cache with TTL
+  // Set data in cache with TTL - only accepts real data
   set(key, data, ttl = this.defaultTTL) {
+    // Reject demo/fake data
+    if (!data || this.isDemoData(data)) {
+      console.warn(`Attempted to cache demo/invalid data for key: ${key}, ignoring`);
+      return false;
+    }
+
     const expiresAt = Date.now() + ttl;
     this.cache.set(key, {
       data,
       expiresAt,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      isRealData: true
     });
+    return true;
+  }
+
+  // Check if data appears to be demo/fake data
+  isDemoData(data) {
+    if (!data) return true;
+
+    // Check for common demo indicators
+    const demoIndicators = [
+      'demo', 'sample', 'test', 'fake', 'john doe', 'jane smith',
+      'demo data', 'sample data', 'using fallback', 'api unavailable',
+      'demo1', 'demo2', 'plt-001', 'plt-002', 'addis ketema', 'bole'
+    ];
+
+    const dataStr = JSON.stringify(data).toLowerCase();
+    return demoIndicators.some(indicator => dataStr.includes(indicator));
   }
 
   // Get data from cache

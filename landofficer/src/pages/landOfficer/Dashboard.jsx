@@ -128,6 +128,30 @@ const LandOfficerDashboard = () => {
           </div>
         )}
 
+        {/* Authentication/Error Status */}
+        {statsError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start">
+              <ExclamationTriangleIcon className="h-5 w-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-red-800 text-sm font-medium">Unable to Load Data</p>
+                <p className="text-red-600 text-xs mt-1">
+                  {statsError.message?.includes('401') || statsError.response?.status === 401
+                    ? 'Please log in to view dashboard data'
+                    : 'Unable to connect to the server. Please try again later.'}
+                </p>
+                <button
+                  onClick={retryStats}
+                  className="inline-flex items-center mt-2 px-2 py-1 text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700"
+                >
+                  <ArrowPathIcon className="h-3 w-3 mr-1" />
+                  Retry
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Pending Applications */}
@@ -137,16 +161,10 @@ const LandOfficerDashboard = () => {
               <h3 className="text-lg font-semibold">Pending</h3>
             </div>
             <div className="text-3xl font-bold text-primary">
-              {statsLoading ? <StatsLoading /> : combinedStats.pendingProperties}
+              {statsLoading ? <StatsLoading /> :
+                statsError ? '—' : combinedStats.pendingProperties}
             </div>
             <p className="text-gray-600 mt-1">Applications</p>
-            {statsError && (
-              <ErrorMessage
-                error={statsError}
-                onRetry={retryStats}
-                title="Failed to load stats"
-              />
-            )}
           </div>
 
           {/* Under Review */}
@@ -157,6 +175,7 @@ const LandOfficerDashboard = () => {
             </div>
             <div className="text-3xl font-bold text-blue-600">
               {pendingAppsLoading ? <StatsLoading /> :
+                pendingAppsError ? '—' :
                 pendingApplications.filter(app => app.status === 'under_review').length
               }
             </div>
@@ -170,7 +189,8 @@ const LandOfficerDashboard = () => {
               <h3 className="text-lg font-semibold">Approved</h3>
             </div>
             <div className="text-3xl font-bold text-green-600">
-              {statsLoading ? <StatsLoading /> : combinedStats.approvedProperties}
+              {statsLoading ? <StatsLoading /> :
+                statsError ? '—' : combinedStats.approvedProperties}
             </div>
             <p className="text-gray-600 mt-1">Properties</p>
           </div>
@@ -182,7 +202,8 @@ const LandOfficerDashboard = () => {
               <h3 className="text-lg font-semibold">Documents</h3>
             </div>
             <div className="text-3xl font-bold text-purple-600">
-              {statsLoading ? <StatsLoading /> : combinedStats.totalDocuments}
+              {statsLoading ? <StatsLoading /> :
+                statsError ? '—' : combinedStats.totalDocuments}
             </div>
             <p className="text-gray-600 mt-1">Total</p>
           </div>
@@ -210,7 +231,15 @@ const LandOfficerDashboard = () => {
               ))}
             </div>
           ) : pendingApplications.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No pending applications found</p>
+            <div className="text-center py-12">
+              <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg font-medium">No Pending Applications</p>
+              <p className="text-gray-400 text-sm mt-1">
+                {pendingAppsError
+                  ? 'Unable to load applications. Please check your connection and try again.'
+                  : 'All applications have been processed.'}
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
