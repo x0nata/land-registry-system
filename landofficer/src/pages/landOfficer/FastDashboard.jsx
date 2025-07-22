@@ -1,4 +1,4 @@
-// Optimized dashboard with real API data
+// Fast-loading dashboard with optimized data fetching
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -12,7 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useFastDashboard } from '../../hooks/useFastDashboard';
 
-const LandOfficerDashboard = () => {
+const FastDashboard = () => {
   const { user, loading } = useAuth();
   const {
     stats,
@@ -32,15 +32,7 @@ const LandOfficerDashboard = () => {
     if (user && !loading) {
       loadDashboardData();
     }
-  }, [user?.id, loading]); // Only depend on user ID and loading state
-
-  // Combined stats for easy access
-  const combinedStats = {
-    pendingProperties: stats.properties?.pending || 0,
-    approvedProperties: stats.properties?.approved || 0,
-    rejectedProperties: stats.properties?.rejected || 0,
-    totalDocuments: stats.documents?.total || 0
-  };
+  }, [user, loading, loadDashboardData]);
 
   // Format date
   const formatDate = (dateString) => {
@@ -137,14 +129,14 @@ const LandOfficerDashboard = () => {
               <h3 className="text-lg font-semibold">Pending</h3>
             </div>
             <div className="text-3xl font-bold text-primary">
-              {statsLoading ? <StatsLoading /> : combinedStats.pendingProperties}
+              {statsLoading ? <StatsLoading /> : stats.pendingProperties}
             </div>
             <p className="text-gray-600 mt-1">Applications</p>
             {statsError && (
-              <ErrorMessage
-                error={statsError}
-                onRetry={retryStats}
-                title="Failed to load stats"
+              <ErrorMessage 
+                error={statsError} 
+                onRetry={retryStats} 
+                title="Failed to load stats" 
               />
             )}
           </div>
@@ -156,7 +148,7 @@ const LandOfficerDashboard = () => {
               <h3 className="text-lg font-semibold">Under Review</h3>
             </div>
             <div className="text-3xl font-bold text-blue-600">
-              {pendingAppsLoading ? <StatsLoading /> :
+              {pendingAppsLoading ? <StatsLoading /> : 
                 pendingApplications.filter(app => app.status === 'under_review').length
               }
             </div>
@@ -170,7 +162,7 @@ const LandOfficerDashboard = () => {
               <h3 className="text-lg font-semibold">Approved</h3>
             </div>
             <div className="text-3xl font-bold text-green-600">
-              {statsLoading ? <StatsLoading /> : combinedStats.approvedProperties}
+              {statsLoading ? <StatsLoading /> : stats.approvedProperties}
             </div>
             <p className="text-gray-600 mt-1">Properties</p>
           </div>
@@ -182,7 +174,7 @@ const LandOfficerDashboard = () => {
               <h3 className="text-lg font-semibold">Documents</h3>
             </div>
             <div className="text-3xl font-bold text-purple-600">
-              {statsLoading ? <StatsLoading /> : combinedStats.totalDocuments}
+              {statsLoading ? <StatsLoading /> : stats.totalDocuments}
             </div>
             <p className="text-gray-600 mt-1">Total</p>
           </div>
@@ -191,12 +183,12 @@ const LandOfficerDashboard = () => {
         {/* Pending Applications Table */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h3 className="text-lg font-semibold mb-4">Recent Pending Applications</h3>
-
+          
           {pendingAppsError ? (
-            <ErrorMessage
-              error={pendingAppsError}
-              onRetry={retryPendingApps}
-              title="Failed to load pending applications"
+            <ErrorMessage 
+              error={pendingAppsError} 
+              onRetry={retryPendingApps} 
+              title="Failed to load pending applications" 
             />
           ) : pendingAppsLoading ? (
             <div className="space-y-4">
@@ -213,70 +205,70 @@ const LandOfficerDashboard = () => {
             <p className="text-gray-500 text-center py-8">No pending applications found</p>
           ) : (
             <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Owner
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Plot Number
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {pendingApplications.map((application) => (
-                  <tr key={application._id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {application._id?.slice(-8) || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {application.owner?.fullName || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {application.plotNumber || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {application.location?.subCity || 'N/A'}, Kebele {application.location?.kebele || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(application.status)} capitalize`}>
-                        {application.status?.replace('_', ' ') || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(application.registrationDate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <Link
-                        to={`/landofficer/property-detail-verification/${application._id}`}
-                        className="text-primary hover:text-primary-dark"
-                      >
-                        Review
-                      </Link>
-                    </td>
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Owner
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Plot Number
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Location
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {pendingApplications.slice(0, 5).map((application) => (
+                    <tr key={application._id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {application._id?.slice(-8) || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {application.owner?.fullName || 'Unknown'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {application.plotNumber || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {application.location?.subCity || 'N/A'}, Kebele {application.location?.kebele || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(application.status)} capitalize`}>
+                          {application.status?.replace('_', ' ') || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(application.registrationDate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <Link
+                          to={`/landofficer/property-detail-verification/${application._id}`}
+                          className="text-primary hover:text-primary-dark"
+                        >
+                          Review
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-
+          
           <div className="mt-4 text-right">
             <Link to="/landofficer/property-verification" className="text-primary hover:underline">
               View All Pending Applications
@@ -318,4 +310,4 @@ const LandOfficerDashboard = () => {
   );
 };
 
-export default LandOfficerDashboard;
+export default FastDashboard;

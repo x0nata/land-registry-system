@@ -5,12 +5,14 @@ const ProtectedRoute = ({ allowedRoles }) => {
   const { isAuthenticated, hasRole, loading, user } = useAuth();
   const location = useLocation();
 
-  // Debug logging
-  console.log('🔒 ProtectedRoute - Loading:', loading);
-  console.log('🔒 ProtectedRoute - User:', user);
-  console.log('🔒 ProtectedRoute - IsAuthenticated:', isAuthenticated());
-  console.log('🔒 ProtectedRoute - AllowedRoles:', allowedRoles);
-  console.log('🔒 ProtectedRoute - Location:', location.pathname);
+  // Debug logging (development only)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔒 ProtectedRoute - Loading:', loading);
+    console.log('🔒 ProtectedRoute - User:', user);
+    console.log('🔒 ProtectedRoute - IsAuthenticated:', isAuthenticated());
+    console.log('🔒 ProtectedRoute - AllowedRoles:', allowedRoles);
+    console.log('🔒 ProtectedRoute - Location:', location.pathname);
+  }
 
   // If authentication is still loading, show loading state
   if (loading) {

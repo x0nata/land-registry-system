@@ -300,16 +300,61 @@ export const getAllProperties = async (req, res) => {
   }
 };
 
-// @desc    Get pending properties for review
+// @desc    Get pending properties for review (optimized)
 // @route   GET /api/properties/pending
 // @access  Private (Admin, Land Officer)
 export const getPendingProperties = async (req, res) => {
   try {
-    const pendingProperties = await Property.find({ status: "pending" })
-      .populate("owner", "fullName email nationalId")
-      .sort({ registrationDate: 1 });
+    const {
+      limit = 50,
+      page = 1,
+      fields,
+      dashboard = false
+    } = req.query;
 
-    res.json(pendingProperties);
+    // For dashboard, use optimized query with minimal fields and short timeout
+    if (dashboard === 'true') {
+      const pendingProperties = await Property.find({
+        status: { $in: ["pending", "under_review"] }
+      })
+      .select('owner plotNumber location propertyType status registrationDate')
+      .populate("owner", "fullName")
+      .sort({ registrationDate: -1 })
+      .limit(parseInt(limit))
+      .maxTimeMS(3000); // 3 second timeout for dashboard
+
+      return res.json({
+        properties: pendingProperties,
+        total: pendingProperties.length,
+        page: parseInt(page),
+        limit: parseInt(limit)
+      });
+    }
+
+    // Regular query for full property management
+    let query = Property.find({ status: "pending" });
+
+    // Apply field selection if specified
+    if (fields) {
+      const selectedFields = fields.split(',').join(' ');
+      query = query.select(selectedFields);
+    }
+
+    const pendingProperties = await query
+      .populate("owner", "fullName email nationalId")
+      .sort({ registrationDate: 1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const total = await Property.countDocuments({ status: "pending" });
+
+    res.json({
+      properties: pendingProperties,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
   } catch (error) {
     console.error("Error fetching pending properties:", error);
     res

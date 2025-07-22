@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  getDashboardStats,
   getPropertyStats,
   getUserStats,
   getDocumentStats,
@@ -13,6 +14,11 @@ import {
 import { authenticate, isAdmin, isAdminOrLandOfficer } from "../middleware/auth.js";
 
 const router = express.Router();
+
+// @route   GET /api/reports/dashboard-stats
+// @desc    Get optimized dashboard statistics
+// @access  Admin, Land Officer
+router.get("/dashboard-stats", authenticate, isAdminOrLandOfficer, getDashboardStats);
 
 // @route   GET /api/reports/properties
 // @desc    Get property statistics
