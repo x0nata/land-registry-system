@@ -7,9 +7,12 @@ class DataCache {
 
   // Set data in cache with TTL - only accepts real data
   set(key, data, ttl = this.defaultTTL) {
+    // Log what we're trying to cache for debugging
+    console.log(`Attempting to cache data for key: ${key}`, data);
+
     // Reject demo/fake data
     if (!data || this.isDemoData(data)) {
-      console.warn(`Attempted to cache demo/invalid data for key: ${key}, ignoring`);
+      console.warn(`Attempted to cache demo/invalid data for key: ${key}, ignoring`, data);
       return false;
     }
 
@@ -20,6 +23,7 @@ class DataCache {
       createdAt: Date.now(),
       isRealData: true
     });
+    console.log(`Successfully cached data for key: ${key}`);
     return true;
   }
 
@@ -27,15 +31,18 @@ class DataCache {
   isDemoData(data) {
     if (!data) return true;
 
-    // Check for common demo indicators
+    // Only reject very specific demo data patterns
     const demoIndicators = [
-      'demo', 'sample', 'test', 'fake', 'john doe', 'jane smith',
+      'demo1', 'demo2', 'john doe', 'jane smith', 'plt-001', 'plt-002',
       'demo data', 'sample data', 'using fallback', 'api unavailable',
-      'demo1', 'demo2', 'plt-001', 'plt-002', 'addis ketema', 'bole'
+      'addis ketema.*kebele.*05', 'bole.*kebele.*03' // Specific demo patterns
     ];
 
     const dataStr = JSON.stringify(data).toLowerCase();
-    return demoIndicators.some(indicator => dataStr.includes(indicator));
+    const isDemo = demoIndicators.some(indicator => dataStr.includes(indicator));
+
+    console.log('Cache validation - Is demo data?', isDemo, 'for data type:', typeof data);
+    return isDemo;
   }
 
   // Get data from cache
