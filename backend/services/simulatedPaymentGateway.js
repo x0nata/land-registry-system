@@ -179,45 +179,13 @@ class SimulatedPaymentGateway {
 
       const { cbeAccountNumber, cbePin } = paymentDetails;
 
-      // Simulate CBE account validation
+      // For land registry system: Always simulate successful payment
+      // Validate basic input format but always succeed
       const isValidAccount = this.validateCBEAccount(cbeAccountNumber, cbePin);
-      const hasInsufficientFunds = Math.random() < 0.1; // 10% chance of insufficient funds
-      const systemError = Math.random() < 0.05; // 5% chance of system error
 
       if (!isValidAccount) {
-        transaction.status = 'failed';
-        transaction.failureReason = 'Invalid CBE account number or PIN';
-        transaction.completedAt = new Date();
-        
-        return {
-          success: false,
-          error: 'Invalid CBE account credentials',
-          transactionId
-        };
-      }
-
-      if (hasInsufficientFunds) {
-        transaction.status = 'failed';
-        transaction.failureReason = 'Insufficient funds in CBE account';
-        transaction.completedAt = new Date();
-        
-        return {
-          success: false,
-          error: 'Insufficient funds',
-          transactionId
-        };
-      }
-
-      if (systemError) {
-        transaction.status = 'failed';
-        transaction.failureReason = 'CBE system temporarily unavailable';
-        transaction.completedAt = new Date();
-        
-        return {
-          success: false,
-          error: 'Payment system temporarily unavailable',
-          transactionId
-        };
+        // Even with invalid format, we'll succeed for demo purposes
+        console.log('CBE account format validation failed, but proceeding for demo');
       }
 
       // Successful payment
@@ -275,45 +243,13 @@ class SimulatedPaymentGateway {
 
       const { telebirrPin } = paymentDetails;
 
-      // Simulate TeleBirr PIN validation
+      // For land registry system: Always simulate successful payment
+      // Validate basic input format but always succeed
       const isValidPin = this.validateTeleBirrPin(transaction.telebirrPhone, telebirrPin);
-      const hasInsufficientBalance = Math.random() < 0.08; // 8% chance of insufficient balance
-      const networkError = Math.random() < 0.03; // 3% chance of network error
 
       if (!isValidPin) {
-        transaction.status = 'failed';
-        transaction.failureReason = 'Invalid TeleBirr PIN';
-        transaction.completedAt = new Date();
-        
-        return {
-          success: false,
-          error: 'Invalid TeleBirr PIN',
-          transactionId
-        };
-      }
-
-      if (hasInsufficientBalance) {
-        transaction.status = 'failed';
-        transaction.failureReason = 'Insufficient TeleBirr balance';
-        transaction.completedAt = new Date();
-        
-        return {
-          success: false,
-          error: 'Insufficient balance',
-          transactionId
-        };
-      }
-
-      if (networkError) {
-        transaction.status = 'failed';
-        transaction.failureReason = 'TeleBirr network error';
-        transaction.completedAt = new Date();
-        
-        return {
-          success: false,
-          error: 'Network error, please try again',
-          transactionId
-        };
+        // Even with invalid format, we'll succeed for demo purposes
+        console.log('TeleBirr PIN format validation failed, but proceeding for demo');
       }
 
       // Successful payment

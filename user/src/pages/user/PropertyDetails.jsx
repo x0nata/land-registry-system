@@ -4,7 +4,6 @@ import { toast } from 'react-toastify';
 import { getPropertyById } from '../../services/propertyService';
 import api from '../../services/api';
 import DocumentManager from '../../components/document/DocumentManager';
-import PaymentMethodSelector from '../../components/payment/PaymentMethodSelector';
 import PaymentStatusIndicator, { PaymentWorkflowProgress } from '../../components/payment/PaymentStatusIndicator';
 import PaymentHistory from '../../components/payment/PaymentHistory';
 import {
@@ -342,11 +341,11 @@ const PropertyDetails = () => {
                 </p>
                 <div className="mt-3">
                   <Link
-                    to={`/property/${id}/payment`}
+                    to="/payments"
                     className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                   >
                     <CreditCardIcon className="h-5 w-5 mr-2" />
-                    Proceed to Payment
+                    Go to Payments
                   </Link>
                 </div>
               </div>
@@ -620,10 +619,22 @@ const PropertyDetails = () => {
 
             {/* Payment Section */}
             {paymentRequirements?.workflowStatus.paymentRequired ? (
-              <PaymentMethodSelector
-                propertyId={id}
-                onPaymentInitiated={handlePaymentInitiated}
-              />
+              <div className="bg-white rounded-lg shadow-md p-6 text-center">
+                <CurrencyDollarIcon className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Ready for Payment
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Your documents have been validated. Proceed to the payments page to complete your property registration payment.
+                </p>
+                <Link
+                  to="/payments"
+                  className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <CreditCardIcon className="h-5 w-5 mr-2" />
+                  Go to Payments
+                </Link>
+              </div>
             ) : (
               <div className="bg-white rounded-lg shadow-md p-6 text-center">
                 <ClockIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />

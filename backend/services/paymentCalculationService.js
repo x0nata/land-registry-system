@@ -45,8 +45,8 @@ const FEE_STRUCTURE = {
     },
   },
   
-  // Processing fees
-  processingFee: 150,
+  // Processing fees - Fixed amount for property registration
+  processingFee: 550, // Fixed fee between 500-600 ETB as requested
   
   // Tax rates (percentage)
   taxRates: {
@@ -93,27 +93,21 @@ class PaymentCalculationService {
       const isUrban = this.isUrbanLocation(subCity);
       const locationKey = isUrban ? 'urban' : 'rural';
       
-      // CRITICAL CHANGE: Remove base registration fee component entirely
-      // Only calculate processing fees and taxes
-
-      // Processing fee (fixed amount)
+      // SIMPLIFIED PAYMENT STRUCTURE: Fixed fee between 500-600 ETB
+      // Use the fixed processing fee as the total amount
       const processingFee = FEE_STRUCTURE.processingFee;
 
-      // Calculate minimal tax base (using only processing fee as base)
-      // This significantly reduces the tax calculation
-      const taxBase = processingFee;
+      // No additional taxes or calculations - keep it simple
+      const registrationTax = 0;
+      const stampDuty = 0;
+      const totalTax = 0;
 
-      // Calculate taxes on the minimal base
-      const registrationTax = taxBase * FEE_STRUCTURE.taxRates.registration;
-      const stampDuty = taxBase * FEE_STRUCTURE.taxRates.stamp;
-      const totalTax = registrationTax + stampDuty;
+      // Total is just the processing fee
+      const totalBeforeDiscount = processingFee;
 
-      // Calculate total before discount (no base registration fee)
-      const totalBeforeDiscount = processingFee + totalTax;
-      
-      // Apply discounts
+      // Apply discounts (optional)
       const discountAmount = this.calculateDiscounts(totalBeforeDiscount, user, options);
-      
+
       // Final total
       const totalAmount = Math.max(0, totalBeforeDiscount - discountAmount);
 

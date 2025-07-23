@@ -1,142 +1,139 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { CurrencyDollarIcon, CreditCardIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { Link, useNavigate } from 'react-router-dom';
+import { 
+  CurrencyDollarIcon, 
+  CreditCardIcon, 
+  CheckCircleIcon, 
+  XCircleIcon,
+  DevicePhoneMobileIcon,
+  BanknotesIcon,
+  ArrowRightIcon,
+  ClockIcon
+} from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
+import api from '../../services/api';
 
 const Payments = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [payments, setPayments] = useState([]);
   const [properties, setProperties] = useState([]);
-  const [filteredPayments, setFilteredPayments] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('');
+  const [selectedProperty, setSelectedProperty] = useState(null);
+  const [paymentCalculation, setPaymentCalculation] = useState(null);
+  const [showPaymentMethods, setShowPaymentMethods] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
+  const [showMerchantInfo, setShowMerchantInfo] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
 
-  // Empty data
+  // Load user properties that need payment
   useEffect(() => {
-    // In a real app, this would be an API call to fetch user's payments
-    const mockProperties = [];
-    const mockPayments = [];
-
-    setProperties(mockProperties);
-    setPayments(mockPayments);
-    setFilteredPayments(mockPayments);
-    setLoading(false);
+    fetchPropertiesNeedingPayment();
   }, []);
 
-  // Filter payments based on search term and status
-  useEffect(() => {
-    let filtered = payments;
-
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(payment => {
-        const property = properties.find(p => p.id === payment.propertyId);
-        return (
-          payment.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (property && property.plotNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          payment.description.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      });
-    }
-
-    // Filter by status
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(payment => payment.status === filterStatus);
-    }
-
-    setFilteredPayments(filtered);
-  }, [searchTerm, filterStatus, payments, properties]);
-
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  // Format currency
-  const formatCurrency = (amount, currency) => {
-    return `${amount.toLocaleString()} ${currency}`;
-  };
-
-  // Get status badge class
-  const getStatusBadgeClass = (status) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'failed':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const fetchPropertiesNeedingPayment = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/properties/my-properties');
+      const allProperties = response.data.properties || [];
+      
+      // Filter properties that need payment (documents validated but payment not completed)
+      const propertiesNeedingPayment = allProperties.filter(property => 
+        property.status === 'documents_validated' && !property.paymentCompleted
+      );
+      
+      setProperties(propertiesNeedingPayment);
+    } catch (error) {
+      console.error('Error fetching properties:', error);
+      toast.error('Failed to load properties');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Get payment method display name
-  const getPaymentMethodDisplay = (method) => {
-    switch (method) {
-      case 'cbe_birr':
-        return 'CBE Birr';
-      case 'telebirr':
-        return 'TeleBirr';
-      case 'amole':
-        return 'Amole';
-      case 'bank_transfer':
-        return 'Bank Transfer';
-      default:
-        return method ? method.replace('_', ' ') : 'N/A';
+  // Handle property selection for payment
+  const handlePropertySelect = async (property) => {
+    try {
+      setSelectedProperty(property);
+      setShowPaymentMethods(true);
+      
+      // Fetch payment calculation
+      const response = await api.get(`/payments/calculate/${property._id}`);
+      setPaymentCalculation(response.data.calculation);
+    } catch (error) {
+      console.error('Error calculating payment:', error);
+      toast.error('Failed to calculate payment amount');
     }
   };
 
-  // Handle payment
-  const handlePayment = (payment) => {
-    setSelectedPayment(payment);
-    setShowPaymentModal(true);
+  // Handle payment method selection
+  const handlePaymentMethodSelect = (method) => {
+    setSelectedPaymentMethod(method);
+    setShowMerchantInfo(true);
   };
 
-  // Process payment
-  const processPayment = () => {
-    if (!paymentMethod) {
-      toast.error('Please select a payment method');
+  // Get merchant info for payment method
+  const getMerchantInfo = (method) => {
+    const merchantInfo = {
+      cbe_birr: {
+        merchantId: 'CBE-LR-001234',
+        merchantName: 'Land Registry Office',
+        accountNumber: '1000123456789',
+        instructions: 'Use your CBE Birr account to complete the payment'
+      },
+      telebirr: {
+        merchantId: 'TB-LR-567890',
+        merchantName: 'Land Registry Office',
+        shortCode: '*127*001234#',
+        instructions: 'Dial the short code or use TeleBirr app to complete payment'
+      }
+    };
+    return merchantInfo[method];
+  };
+
+  // Handle proceeding to payment simulation
+  const handleProceedToPayment = () => {
+    if (!selectedProperty || !selectedPaymentMethod) {
+      toast.error('Please select a property and payment method');
       return;
     }
 
-    setProcessingPayment(true);
-
-    // Simulate payment processing
-    setTimeout(() => {
-      // Update payment in state
-      const updatedPayments = payments.map(p => {
-        if (p.id === selectedPayment.id) {
-          return {
-            ...p,
-            status: 'completed',
-            paymentDate: new Date().toISOString(),
-            paymentMethod: paymentMethod,
-            transactionId: `TRX${Math.floor(Math.random() * 1000000)}`
-          };
-        }
-        return p;
-      });
-
-      setPayments(updatedPayments);
-      setFilteredPayments(updatedPayments);
-      setProcessingPayment(false);
-      setShowPaymentModal(false);
-      setPaymentMethod('');
-      toast.success('Payment completed successfully');
-    }, 2000);
+    // Navigate to payment simulation
+    navigate(`/payment-simulation/${selectedPaymentMethod}`, {
+      state: {
+        property: selectedProperty,
+        paymentCalculation,
+        merchantInfo: getMerchantInfo(selectedPaymentMethod)
+      }
+    });
   };
+
+  // Reset payment flow
+  const resetPaymentFlow = () => {
+    setSelectedProperty(null);
+    setPaymentCalculation(null);
+    setShowPaymentMethods(false);
+    setSelectedPaymentMethod(null);
+    setShowMerchantInfo(false);
+  };
+
+  // Payment methods configuration
+  const paymentMethods = [
+    {
+      id: 'cbe_birr',
+      name: 'CBE Birr',
+      description: 'Pay using your Commercial Bank of Ethiopia account',
+      icon: CreditCardIcon,
+      color: 'blue'
+    },
+    {
+      id: 'telebirr',
+      name: 'TeleBirr',
+      description: 'Pay using your TeleBirr mobile wallet',
+      icon: DevicePhoneMobileIcon,
+      color: 'green'
+    }
+  ];
 
   if (loading) {
     return <div className="flex justify-center items-center h-[70vh]">Loading...</div>;
@@ -146,241 +143,198 @@ const Payments = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">My Payments</h1>
-          <p className="text-gray-600">Manage your property-related payments</p>
+          <h1 className="text-2xl font-bold">Property Payments</h1>
+          <p className="text-gray-600">Complete payments for your property registrations</p>
         </div>
+        {selectedProperty && (
+          <button
+            onClick={resetPaymentFlow}
+            className="mt-4 md:mt-0 px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+          >
+            ← Back to Properties
+          </button>
+        )}
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Search by payment ID, property, or description..."
-              className="form-input w-full"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="w-full md:w-48">
-            <select
-              className="form-input w-full"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
-            </select>
-          </div>
+      {/* Step 1: Property Selection */}
+      {!selectedProperty && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-lg font-semibold mb-4">Select Property for Payment</h2>
+          {properties.length === 0 ? (
+            <div className="text-center py-8">
+              <CurrencyDollarIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Properties Ready for Payment</h3>
+              <p className="text-gray-600">
+                You don't have any properties that are ready for payment. Properties must have validated documents before payment can be processed.
+              </p>
+              <Link
+                to="/properties"
+                className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                View My Properties
+              </Link>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {properties.map((property) => (
+                <div
+                  key={property._id}
+                  className="border rounded-lg p-4 hover:border-blue-300 cursor-pointer transition-colors"
+                  onClick={() => handlePropertySelect(property)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium">Plot #{property.plotNumber}</h3>
+                      <p className="text-sm text-gray-600">{property.propertyType} • {property.area} sq.m</p>
+                      <p className="text-sm text-gray-600">{property.location?.city}, {property.location?.subCity}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Ready for Payment
+                      </span>
+                      <p className="text-sm text-gray-600 mt-1">Fixed Fee: 550 ETB</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      {/* Payments Table */}
-      {filteredPayments.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-md p-8 text-center">
-          <CurrencyDollarIcon className="h-12 w-12 mx-auto text-gray-400" />
-          <h2 className="mt-4 text-xl font-semibold">No Payments Found</h2>
-          <p className="mt-2 text-gray-500">
-            {searchTerm || filterStatus !== 'all'
-              ? 'Try adjusting your search or filter criteria'
-              : 'You have no payments to display'}
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Property
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Method
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPayments.map((payment) => {
-                  const property = properties.find(p => p.id === payment.propertyId);
-                  return (
-                    <tr key={payment.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {payment.id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {property ? property.plotNumber : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {payment.description}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatCurrency(payment.amount, payment.currency)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(payment.status)} capitalize`}>
-                          {payment.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(payment.paymentDate)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {getPaymentMethodDisplay(payment.paymentMethod)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {payment.status === 'pending' ? (
-                          <button
-                            onClick={() => handlePayment(payment)}
-                            className="text-primary hover:text-primary-dark"
-                          >
-                            Pay Now
-                          </button>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* Step 2: Payment Method Selection */}
+      {selectedProperty && showPaymentMethods && !showMerchantInfo && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-lg font-semibold mb-4">Select Payment Method</h2>
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <h3 className="font-medium">Payment Details</h3>
+            <p className="text-sm text-gray-600">Property: Plot #{selectedProperty.plotNumber}</p>
+            <p className="text-sm text-gray-600">
+              Amount: {paymentCalculation ? `${paymentCalculation.summary.totalAmount} ETB` : '550 ETB'}
+            </p>
+          </div>
+          
+          <div className="grid gap-4 md:grid-cols-2">
+            {paymentMethods.map((method) => {
+              const IconComponent = method.icon;
+              return (
+                <div
+                  key={method.id}
+                  className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                    selectedPaymentMethod === method.id
+                      ? `border-${method.color}-500 bg-${method.color}-50`
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                  onClick={() => handlePaymentMethodSelect(method.id)}
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className={`p-3 rounded-full bg-${method.color}-100`}>
+                      <IconComponent className={`h-6 w-6 text-${method.color}-600`} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{method.name}</h3>
+                      <p className="text-sm text-gray-600">{method.description}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Payment Modal */}
-      {showPaymentModal && selectedPayment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Make Payment</h2>
-              <button
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  setPaymentMethod('');
-                }}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <XCircleIcon className="h-6 w-6" />
-              </button>
-            </div>
+      {/* Step 3: Merchant Information */}
+      {selectedProperty && showMerchantInfo && selectedPaymentMethod && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-lg font-semibold mb-4">Payment Information</h2>
 
-            <div className="mb-4">
-              <p className="text-gray-700">
-                <span className="font-medium">Property:</span>{' '}
-                {properties.find(p => p.id === selectedPayment.propertyId)?.plotNumber || 'N/A'}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-medium">Description:</span> {selectedPayment.description}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-medium">Amount:</span>{' '}
-                {formatCurrency(selectedPayment.amount, selectedPayment.currency)}
-              </p>
-            </div>
-
-            <div className="mb-6">
-              <label className="form-label">Select Payment Method</label>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <button
-                  type="button"
-                  className={`border rounded-md p-3 flex flex-col items-center ${
-                    paymentMethod === 'cbe_birr' ? 'border-primary bg-primary bg-opacity-10' : 'border-gray-300'
-                  }`}
-                  onClick={() => setPaymentMethod('cbe_birr')}
-                >
-                  <CreditCardIcon className="h-6 w-6 text-primary mb-1" />
-                  <span>CBE Birr</span>
-                </button>
-                <button
-                  type="button"
-                  className={`border rounded-md p-3 flex flex-col items-center ${
-                    paymentMethod === 'telebirr' ? 'border-primary bg-primary bg-opacity-10' : 'border-gray-300'
-                  }`}
-                  onClick={() => setPaymentMethod('telebirr')}
-                >
-                  <CreditCardIcon className="h-6 w-6 text-primary mb-1" />
-                  <span>TeleBirr</span>
-                </button>
-                <button
-                  type="button"
-                  className={`border rounded-md p-3 flex flex-col items-center ${
-                    paymentMethod === 'amole' ? 'border-primary bg-primary bg-opacity-10' : 'border-gray-300'
-                  }`}
-                  onClick={() => setPaymentMethod('amole')}
-                >
-                  <CreditCardIcon className="h-6 w-6 text-primary mb-1" />
-                  <span>Amole</span>
-                </button>
-                <button
-                  type="button"
-                  className={`border rounded-md p-3 flex flex-col items-center ${
-                    paymentMethod === 'bank_transfer' ? 'border-primary bg-primary bg-opacity-10' : 'border-gray-300'
-                  }`}
-                  onClick={() => setPaymentMethod('bank_transfer')}
-                >
-                  <CreditCardIcon className="h-6 w-6 text-primary mb-1" />
-                  <span>Bank Transfer</span>
-                </button>
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <h3 className="font-medium mb-2">Payment Summary</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Property:</span>
+                <span className="ml-2 font-medium">Plot #{selectedProperty.plotNumber}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Amount:</span>
+                <span className="ml-2 font-medium">
+                  {paymentCalculation ? `${paymentCalculation.summary.totalAmount} ETB` : '550 ETB'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-600">Payment Method:</span>
+                <span className="ml-2 font-medium">
+                  {paymentMethods.find(m => m.id === selectedPaymentMethod)?.name}
+                </span>
               </div>
             </div>
+          </div>
 
-            <div className="flex justify-end">
-              <button
-                type="button"
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 mr-2"
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  setPaymentMethod('');
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={`px-4 py-2 rounded-md flex items-center ${
-                  paymentMethod
-                    ? 'bg-primary text-white hover:bg-primary-dark'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-                onClick={processPayment}
-                disabled={!paymentMethod || processingPayment}
-              >
-                {processingPayment ? (
-                  <>
-                    <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircleIcon className="h-5 w-5 mr-1" />
-                    Complete Payment
-                  </>
+          <div className="mb-6 p-4 border rounded-lg">
+            <h3 className="font-medium mb-3">Merchant Information</h3>
+            {selectedPaymentMethod && (
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="text-gray-600">Merchant ID:</span>
+                  <span className="ml-2 font-mono font-medium">
+                    {getMerchantInfo(selectedPaymentMethod).merchantId}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Merchant Name:</span>
+                  <span className="ml-2 font-medium">
+                    {getMerchantInfo(selectedPaymentMethod).merchantName}
+                  </span>
+                </div>
+                {selectedPaymentMethod === 'cbe_birr' && (
+                  <div>
+                    <span className="text-gray-600">Account Number:</span>
+                    <span className="ml-2 font-mono font-medium">
+                      {getMerchantInfo(selectedPaymentMethod).accountNumber}
+                    </span>
+                  </div>
                 )}
-              </button>
-            </div>
+                {selectedPaymentMethod === 'telebirr' && (
+                  <div>
+                    <span className="text-gray-600">Short Code:</span>
+                    <span className="ml-2 font-mono font-medium">
+                      {getMerchantInfo(selectedPaymentMethod).shortCode}
+                    </span>
+                  </div>
+                )}
+                <div className="mt-3 p-3 bg-blue-50 rounded">
+                  <p className="text-blue-800 text-sm">
+                    {getMerchantInfo(selectedPaymentMethod).instructions}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-between">
+            <button
+              onClick={() => setShowMerchantInfo(false)}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              ← Back to Payment Methods
+            </button>
+            <button
+              onClick={handleProceedToPayment}
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+              disabled={processingPayment}
+            >
+              {processingPayment ? (
+                <>
+                  <ClockIcon className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  Proceed to Payment
+                  <ArrowRightIcon className="h-4 w-4 ml-2" />
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}

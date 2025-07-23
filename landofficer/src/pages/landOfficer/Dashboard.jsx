@@ -130,13 +130,29 @@ const LandOfficerDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Land Officer Dashboard
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Welcome back, {user?.fullName || 'Land Officer'}
-          </p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Land Officer Dashboard
+            </h1>
+            <p className="mt-2 text-gray-600">
+              Welcome back, {user?.fullName || 'Land Officer'}
+            </p>
+          </div>
+          <button
+            onClick={() => loadDashboardData(true)}
+            disabled={isLoading}
+            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {isLoading ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            ) : (
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            )}
+            Refresh Data
+          </button>
         </div>
 
         {/* Overall loading indicator */}

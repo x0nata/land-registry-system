@@ -7,13 +7,14 @@ export const useFastDashboard = () => {
   // Loading states
   const [statsLoading, setStatsLoading] = useState(false);
   const [pendingAppsLoading, setPendingAppsLoading] = useState(false);
-  
+  const [autoRefreshing, setAutoRefreshing] = useState(false);
+
   // Data states
   const [stats, setStats] = useState({
     properties: { total: 45, pending: 12, approved: 28, rejected: 5, underReview: 0 }
   });
   const [pendingApplications, setPendingApplications] = useState([]);
-  
+
   // Error states
   const [statsError, setStatsError] = useState(null);
   const [pendingAppsError, setPendingAppsError] = useState(null);
@@ -42,14 +43,14 @@ export const useFastDashboard = () => {
   }, [statsLoading]);
 
   // Load pending applications - real data only
-  const loadPendingApplications = useCallback(async (limit = 10) => {
+  const loadPendingApplications = useCallback(async (limit = 10, forceFresh = false) => {
     if (pendingAppsLoading) return; // Prevent duplicate calls
 
     setPendingAppsLoading(true);
     setPendingAppsError(null);
 
     try {
-      const data = await getPendingPropertiesFast(limit);
+      const data = await getPendingPropertiesFast(limit, 1, forceFresh);
       setPendingApplications(data.properties || []);
       setPendingAppsError(null);
     } catch (error) {
@@ -79,7 +80,7 @@ export const useFastDashboard = () => {
 
     // Load pending applications
     if (!pendingAppsLoading) {
-      await loadPendingApplications();
+      await loadPendingApplications(10, forceFresh);
     }
   }, []); // Remove dependencies to prevent infinite loops
 
@@ -89,7 +90,7 @@ export const useFastDashboard = () => {
   }, []);
 
   const retryPendingApps = useCallback(() => {
-    if (!pendingAppsLoading) loadPendingApplications();
+    if (!pendingAppsLoading) loadPendingApplications(10, true); // Force fresh data on retry
   }, []);
 
   // Combined stats for easy access - only use fallbacks when there's an error
@@ -101,9 +102,23 @@ export const useFastDashboard = () => {
     underReviewProperties: statsError ? 0 : (stats.properties?.underReview ?? 0)
   };
 
+  // Auto-refresh mechanism - refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (!statsLoading && !pendingAppsLoading) {
+        console.log('Auto-refreshing dashboard data...');
+        setAutoRefreshing(true);
+        await loadPendingApplications(10, true); // Force fresh data for pending applications
+        setTimeout(() => setAutoRefreshing(false), 1000); // Show indicator for 1 second
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [statsLoading, pendingAppsLoading, loadPendingApplications]);
+
   // Overall loading state
   const isLoading = statsLoading || pendingAppsLoading;
-  
+
   // Overall error state
   const hasErrors = statsError || pendingAppsError;
 
@@ -111,17 +126,18 @@ export const useFastDashboard = () => {
     // Data
     stats: combinedStats,
     pendingApplications,
-    
+
     // Loading states
     statsLoading,
     pendingAppsLoading,
     isLoading,
-    
+    autoRefreshing,
+
     // Error states
     statsError,
     pendingAppsError,
     hasErrors,
-    
+
     // Actions
     loadDashboardData,
     retryStats,

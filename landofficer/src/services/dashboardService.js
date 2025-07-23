@@ -119,13 +119,17 @@ export const getDashboardStats = async () => {
 };
 
 // Get pending properties - real data only
-export const getPendingPropertiesFast = async (limit = 10, page = 1) => {
+export const getPendingPropertiesFast = async (limit = 10, page = 1, forceFresh = false) => {
   try {
-    // Check cache first
-    const cachedData = getCachedPendingProperties();
-    if (cachedData) {
-      console.log('Using cached real pending properties');
-      return cachedData;
+    // Check cache first (unless forcing fresh data)
+    if (!forceFresh) {
+      const cachedData = getCachedPendingProperties();
+      if (cachedData) {
+        console.log('Using cached real pending properties');
+        return cachedData;
+      }
+    } else {
+      console.log('Forcing fresh data fetch for pending properties');
     }
 
     const response = await dashboardApi.get('/properties/pending', {
@@ -136,8 +140,21 @@ export const getPendingPropertiesFast = async (limit = 10, page = 1) => {
       isArray: Array.isArray(response.data),
       hasProperties: !!response.data.properties,
       propertiesCount: response.data.properties?.length || 0,
-      total: response.data.total
+      total: response.data.total,
+      timestamp: new Date().toISOString(),
+      forceFresh: forceFresh
     });
+
+    // Log individual properties for debugging
+    if (response.data.properties && response.data.properties.length > 0) {
+      console.log('Latest properties:', response.data.properties.map(p => ({
+        id: p._id,
+        plotNumber: p.plotNumber,
+        status: p.status,
+        registrationDate: p.registrationDate,
+        owner: p.owner?.fullName
+      })));
+    }
 
     // Handle the real API response format
     const data = response.data;

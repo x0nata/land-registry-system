@@ -39,13 +39,33 @@ const PropertyVerification = () => {
     fetchProperties();
   }, [statusFilter]);
 
-  const fetchProperties = async () => {
+  // Auto-refresh properties every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!loading) {
+        console.log('Auto-refreshing property verification data...');
+        fetchProperties(true); // Force fresh data
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [loading]);
+
+  const fetchProperties = async (forceFresh = false) => {
     try {
       setLoading(true);
       const filters = {
         status: statusFilter || undefined,
         search: searchTerm || undefined
       };
+
+      // Clear cache if forcing fresh data
+      if (forceFresh) {
+        // Clear cache to get fresh data
+        if (typeof window !== 'undefined' && window.dataCache) {
+          window.dataCache.clear();
+        }
+      }
 
       const response = await getAssignedProperties(filters);
       setProperties(response.properties || response || []);
@@ -205,6 +225,20 @@ const PropertyVerification = () => {
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <h1 className="text-2xl font-bold">Property Verification</h1>
+          <button
+            onClick={() => fetchProperties(true)}
+            disabled={loading}
+            className="mt-4 md:mt-0 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {loading ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            ) : (
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            )}
+            Refresh Properties
+          </button>
         </div>
 
         {/* Search and Filter */}
