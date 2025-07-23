@@ -255,6 +255,7 @@ class NotificationService {
       console.error('Error sending payment reminder notification:', error);
       return { success: false, error: error.message };
     }
+  }
 
   /**
    * Send payment completed notification to user
@@ -364,7 +365,6 @@ class NotificationService {
     } catch (error) {
       console.error('Error sending payment rejection notification:', error);
     }
-  }
   }
 
   /**
