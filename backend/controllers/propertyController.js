@@ -337,7 +337,7 @@ export const getAllProperties = async (req, res) => {
 export const getPendingProperties = async (req, res) => {
   try {
     const {
-      limit = 50,
+      limit = 10, // Changed default from 50 to 10 for better frontend performance
       page = 1,
       fields,
       dashboard = false
@@ -350,7 +350,7 @@ export const getPendingProperties = async (req, res) => {
       })
       .select('owner plotNumber location propertyType status registrationDate')
       .populate("owner", "fullName")
-      .sort({ registrationDate: -1 })
+      .sort({ registrationDate: -1 }) // Newest first
       .limit(parseInt(limit))
       .maxTimeMS(3000); // 3 second timeout for dashboard
 
@@ -373,7 +373,7 @@ export const getPendingProperties = async (req, res) => {
 
     const pendingProperties = await query
       .populate("owner", "fullName email nationalId")
-      .sort({ registrationDate: 1 })
+      .sort({ registrationDate: -1 }) // Changed from ascending to descending (newest first)
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit));
 
@@ -448,7 +448,7 @@ export const getAssignedProperties = async (req, res) => {
       .populate("reviewedBy", "fullName email")
       .skip(skip)
       .limit(parseInt(limit))
-      .sort({ registrationDate: 1 }); // Oldest first for review queue
+      .sort({ registrationDate: -1 }); // Changed to newest first for consistency
 
     // Get total count for pagination
     const total = await Property.countDocuments(query);

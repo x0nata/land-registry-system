@@ -63,7 +63,9 @@ export const deleteProperty = async (propertyId) => {
 // Get all properties (admin/land officer only)
 export const getAllProperties = async (filters = {}) => {
   try {
-    const response = await api.get('/properties', { params: filters });
+    // Set default limit to 10 for recent properties if not specified
+    const defaultFilters = { limit: 10, ...filters };
+    const response = await api.get('/properties', { params: defaultFilters });
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to fetch properties' };
@@ -76,9 +78,12 @@ export const getPendingProperties = async (params = {}) => {
     // Always use dashboard API for better performance
     const apiInstance = dashboardApi;
 
+    // Set default limit to 10 for recent properties and add dashboard flag
+    const defaultParams = { limit: 10, dashboard: 'true', ...params };
+
     // Clean up params to avoid sending undefined values
     const cleanParams = Object.fromEntries(
-      Object.entries(params).filter(([_, value]) => value !== undefined && value !== null)
+      Object.entries(defaultParams).filter(([_, value]) => value !== undefined && value !== null)
     );
 
     const response = await apiInstance.get('/properties/pending', { params: cleanParams });

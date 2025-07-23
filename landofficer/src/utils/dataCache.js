@@ -2,7 +2,7 @@
 class DataCache {
   constructor() {
     this.cache = new Map();
-    this.defaultTTL = 5 * 60 * 1000; // 5 minutes default TTL
+    this.defaultTTL = 30 * 1000; // 30 seconds default TTL (reduced for fresher data)
   }
 
   // Set data in cache with TTL - only accepts real data
@@ -113,10 +113,21 @@ class DataCache {
     keysToDelete.forEach(key => this.cache.delete(key));
     return keysToDelete.length;
   }
+
+  // Clear all cache
+  clear() {
+    this.cache.clear();
+    console.log('Cache cleared');
+  }
 }
 
 // Create singleton instance
 const dataCache = new DataCache();
+
+// Expose globally for debugging and cache management
+if (typeof window !== 'undefined') {
+  window.dataCache = dataCache;
+}
 
 // Cache keys for different data types
 export const CACHE_KEYS = {
@@ -129,9 +140,9 @@ export const CACHE_KEYS = {
 
 // Cache TTL configurations (in milliseconds)
 export const CACHE_TTL = {
-  STATS: 3 * 60 * 1000,        // 3 minutes for stats (increased for better performance)
-  PENDING_DATA: 2 * 60 * 1000,  // 2 minutes for pending items (increased for better performance)
-  ACTIVITIES: 60 * 1000         // 1 minute for activities (increased for better performance)
+  STATS: 30 * 1000,        // 30 seconds for stats (reduced for fresher data)
+  PENDING_DATA: 15 * 1000,  // 15 seconds for pending items (reduced for fresher data)
+  ACTIVITIES: 30 * 1000     // 30 seconds for activities (reduced for fresher data)
 };
 
 // Helper functions for common operations
@@ -186,6 +197,17 @@ export const invalidateDocumentCaches = () => {
   dataCache.delete(CACHE_KEYS.DOCUMENT_STATS);
   dataCache.delete(CACHE_KEYS.PENDING_DOCUMENTS);
   dataCache.delete(CACHE_KEYS.RECENT_ACTIVITIES);
+};
+
+// Clear all cache
+export const clearAllCache = () => {
+  dataCache.clear();
+};
+
+// Clear specific cache key
+export const clearCache = (key) => {
+  dataCache.cache.delete(key);
+  console.log(`Cache cleared for key: ${key}`);
 };
 
 // Auto cleanup expired items every 5 minutes

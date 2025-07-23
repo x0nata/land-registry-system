@@ -129,7 +129,7 @@ export const getPendingPropertiesFast = async (limit = 10, page = 1) => {
     }
 
     const response = await dashboardApi.get('/properties/pending', {
-      params: { limit, page }
+      params: { limit, page, dashboard: 'true' } // Add dashboard flag for optimized query
     });
 
     console.log('Pending properties API response structure:', {

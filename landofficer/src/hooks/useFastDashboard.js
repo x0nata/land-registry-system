@@ -1,6 +1,7 @@
 // Super-fast dashboard hook with optimized loading
 import { useState, useEffect, useCallback } from 'react';
 import { getDashboardStats, getPendingPropertiesFast } from '../services/dashboardService';
+import { CACHE_KEYS, clearAllCache } from '../utils/dataCache';
 
 export const useFastDashboard = () => {
   // Loading states
@@ -62,7 +63,12 @@ export const useFastDashboard = () => {
   }, [pendingAppsLoading]);
 
   // Load all dashboard data sequentially with minimal delays
-  const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(async (forceFresh = false) => {
+    // Clear cache if forcing fresh data
+    if (forceFresh) {
+      clearAllCache();
+    }
+
     // Load stats first (fastest)
     if (!statsLoading) {
       await loadStats();
