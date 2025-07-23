@@ -3,15 +3,43 @@ import api from './api';
 // Get all properties for the current user
 export const getUserProperties = async () => {
   try {
+    console.log('Fetching user properties...');
     const response = await api.get('/properties/user');
+    console.log('Properties API response:', response.data);
+
     // Extract properties array from the response object
     if (response.data && response.data.success && Array.isArray(response.data.properties)) {
+      console.log(`Successfully fetched ${response.data.properties.length} properties`);
       return response.data.properties;
     }
+
     // Fallback for different response structures
-    return Array.isArray(response.data) ? response.data : [];
+    const properties = Array.isArray(response.data) ? response.data : [];
+    console.log(`Fallback: returning ${properties.length} properties`);
+    return properties;
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to fetch properties' };
+    console.error('Error in getUserProperties:', error);
+
+    // Enhanced error handling
+    if (error.response) {
+      console.error('API Error Response:', error.response.data);
+      console.error('API Error Status:', error.response.status);
+
+      // Handle specific error cases
+      if (error.response.status === 401) {
+        throw { message: 'Authentication required. Please log in again.', code: 'AUTH_REQUIRED' };
+      } else if (error.response.status === 500) {
+        throw { message: 'Server error. Please try again later.', code: 'SERVER_ERROR' };
+      }
+
+      throw error.response.data || { message: 'Failed to fetch properties' };
+    } else if (error.request) {
+      console.error('Network Error:', error.request);
+      throw { message: 'Network error. Please check your connection.', code: 'NETWORK_ERROR' };
+    } else {
+      console.error('Unknown Error:', error.message);
+      throw { message: error.message || 'Failed to fetch properties', code: 'UNKNOWN_ERROR' };
+    }
   }
 };
 

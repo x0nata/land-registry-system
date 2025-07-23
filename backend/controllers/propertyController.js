@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Property from "../models/Property.js";
 import PropertyTransfer from "../models/PropertyTransfer.js";
 import ApplicationLog from "../models/ApplicationLog.js";
@@ -65,9 +66,33 @@ export const registerProperty = async (req, res) => {
 // @access  Private (User)
 export const getUserProperties = async (req, res) => {
   try {
+    // Check if database is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.log("Database not connected, returning empty properties array");
+      return res.json({
+        success: true,
+        properties: [],
+        count: 0,
+        message: "Database temporarily unavailable"
+      });
+    }
+
+    // Validate user ID
+    if (!req.user || !req.user._id) {
+      console.error("No user ID found in request");
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user authentication"
+      });
+    }
+
+    console.log(`Fetching properties for user: ${req.user._id}`);
+
     const properties = await Property.find({ owner: req.user._id }).sort({
       registrationDate: -1,
     });
+
+    console.log(`Found ${properties.length} properties for user ${req.user._id}`);
 
     res.json({
       success: true,
@@ -76,7 +101,13 @@ export const getUserProperties = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching user properties:", error);
-    res.status(500).json({ message: "Server error while fetching properties" });
+    console.error("Error details:", error.message);
+    console.error("Error stack:", error.stack);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching properties",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

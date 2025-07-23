@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BellIcon, DocumentTextIcon, HomeIcon, CurrencyDollarIcon, MagnifyingGlassIcon, TrashIcon, PencilIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
@@ -22,6 +22,7 @@ const UserDashboard = () => {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [showDocumentManager, setShowDocumentManager] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [hasShownError, setHasShownError] = useState(false);
 
   // Empty property data
   const [properties, setProperties] = useState([]);
@@ -31,6 +32,9 @@ const UserDashboard = () => {
 
   // Empty payments data
   const [payments, setPayments] = useState([]);
+
+  // Ref to prevent multiple simultaneous calls
+  const loadingRef = useRef(false);
 
   // Format date
   const formatDate = (dateString) => {
@@ -156,8 +160,19 @@ const UserDashboard = () => {
   }, []);
 
   // Centralized function to load and update dashboard data
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
+    // Prevent multiple simultaneous calls
+    if (loadingRef.current) {
+      console.log('Already loading dashboard data, skipping...');
+      return;
+    }
+
     try {
+      loadingRef.current = true;
+      setHasShownError(false);
+
+      console.log('Loading dashboard data...');
+
       // Fetch user's properties
       const propertiesArray = await getUserProperties();
       console.log('Fetched user properties:', propertiesArray);
@@ -177,9 +192,14 @@ const UserDashboard = () => {
         const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
 
         if (!lastWelcomeTime || (now - parseInt(lastWelcomeTime)) > oneHour) {
+          // Show different message for new users with no properties
+          const welcomeMessage = propertiesArray.length === 0
+            ? `Hello ${user.fullName}, welcome to your property dashboard! Start by registering your first property.`
+            : `Hello ${user.fullName}, welcome back to your property dashboard.`;
+
           addNotification({
-            title: 'Welcome back!',
-            message: `Hello ${user.fullName}, welcome to your property dashboard.`,
+            title: propertiesArray.length === 0 ? 'Welcome to Land Registry!' : 'Welcome back!',
+            message: welcomeMessage,
             type: 'info',
             showToast: false
           });
@@ -188,7 +208,13 @@ const UserDashboard = () => {
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      toast.error('Failed to load dashboard data');
+
+      // Only show error toast once per component instance
+      if (!hasShownError) {
+        toast.error('Failed to load dashboard data');
+        setHasShownError(true);
+      }
+
       // Set empty arrays as fallback
       setProperties([]);
       setDashboardStats({
@@ -199,8 +225,9 @@ const UserDashboard = () => {
       });
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
-  };
+  }, [user, calculateDashboardStats, addNotification, hasShownError]);
 
   // Function to refresh dashboard data without showing loading state
   const refreshDashboardData = async () => {
@@ -229,7 +256,7 @@ const UserDashboard = () => {
     }
 
     loadDashboardData();
-  }, [isAuthenticated, navigate]); // Removed user dependency to prevent duplicate calls
+  }, [isAuthenticated, navigate, loadDashboardData]); // Added loadDashboardData to dependencies
 
   // Import the LoadingSpinner component
   const LoadingSpinner = React.lazy(() => import('../../components/common/LoadingSpinner'));

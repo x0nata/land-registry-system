@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ClockIcon,
@@ -33,32 +33,54 @@ const RecentActivity = ({
     status: 'all'
   });
   const [showAllFilters, setShowAllFilters] = useState(false);
+  const [hasShownError, setHasShownError] = useState(false);
 
   const { user } = useAuth();
+  const loadingRef = useRef(false);
+
+  const loadActivities = useCallback(async () => {
+    // Prevent multiple simultaneous calls
+    if (loadingRef.current) {
+      console.log('Already loading activities, skipping...');
+      return;
+    }
+
+    try {
+      loadingRef.current = true;
+      setIsLoading(true);
+      setHasShownError(false);
+
+      console.log(`Loading activities - userSpecific: ${userSpecific}, limit: ${limit}`);
+
+      const response = userSpecific
+        ? await getUserRecentActivities({ limit: limit * 2 })
+        : await getRecentActivities({ limit: limit * 2 }); // Get more to allow for filtering
+
+      console.log(`Loaded ${response?.length || 0} activities`);
+      setActivities(response || []);
+    } catch (error) {
+      console.error('Error loading recent activities:', error);
+
+      // Only show error toast once per component instance
+      if (!hasShownError) {
+        toast.error('Failed to load recent activities');
+        setHasShownError(true);
+      }
+
+      setActivities([]);
+    } finally {
+      setIsLoading(false);
+      loadingRef.current = false;
+    }
+  }, [limit, userSpecific, hasShownError]);
 
   useEffect(() => {
     loadActivities();
-  }, [limit]);
+  }, [loadActivities]);
 
   useEffect(() => {
     applyFilters();
   }, [activities, filters]);
-
-  const loadActivities = async () => {
-    try {
-      setIsLoading(true);
-      const response = userSpecific
-        ? await getUserRecentActivities({ limit: limit * 2 })
-        : await getRecentActivities({ limit: limit * 2 }); // Get more to allow for filtering
-      setActivities(response || []);
-    } catch (error) {
-      console.error('Error loading recent activities:', error);
-      toast.error('Failed to load recent activities');
-      setActivities([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const applyFilters = () => {
     let filtered = [...activities];

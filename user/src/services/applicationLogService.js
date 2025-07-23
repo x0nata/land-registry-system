@@ -63,20 +63,48 @@ export const getRecentActivities = async (params = {}) => {
 // Get recent activities for the current user
 export const getUserRecentActivities = async (params = {}) => {
   try {
+    console.log('Fetching user recent activities with params:', params);
+
     // Use specialized recent activities API for better timeout handling with large datasets
     const apiInstance = params.dashboard ? recentActivitiesApi : (params.fastLoad ? dashboardApi : recentActivitiesApi);
     const response = await apiInstance.get('/logs/user/recent', { params });
+
+    console.log('User activities API response:', response.data);
+    console.log(`Successfully fetched ${response.data?.length || 0} user activities`);
+
     return response.data;
   } catch (error) {
+    console.error('Error in getUserRecentActivities:', error);
+
     // Enhanced error handling for timeout issues
     if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout for user activities');
       throw {
         message: 'Request timed out while fetching user activities. Please try again.',
         isTimeout: true,
         originalError: error
       };
     }
-    throw error.response?.data || { message: 'Failed to fetch user recent activities' };
+
+    // Handle specific error cases
+    if (error.response) {
+      console.error('API Error Response:', error.response.data);
+      console.error('API Error Status:', error.response.status);
+
+      if (error.response.status === 401) {
+        throw { message: 'Authentication required. Please log in again.', code: 'AUTH_REQUIRED' };
+      } else if (error.response.status === 500) {
+        throw { message: 'Server error while fetching activities. Please try again later.', code: 'SERVER_ERROR' };
+      }
+
+      throw error.response.data || { message: 'Failed to fetch user recent activities' };
+    } else if (error.request) {
+      console.error('Network Error:', error.request);
+      throw { message: 'Network error. Please check your connection.', code: 'NETWORK_ERROR' };
+    } else {
+      console.error('Unknown Error:', error.message);
+      throw { message: error.message || 'Failed to fetch user recent activities', code: 'UNKNOWN_ERROR' };
+    }
   }
 };
 

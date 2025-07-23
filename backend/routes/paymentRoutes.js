@@ -142,8 +142,12 @@ router.put(
     authenticate,
     check("status", "Status is required").isIn([
       "pending",
+      "processing",
       "completed",
       "failed",
+      "rejected",
+      "refunded",
+      "cancelled",
     ]),
     check("transactionId", "Transaction ID is required")
       .optional()
@@ -240,6 +244,7 @@ router.post(
   "/chapa/initialize/:propertyId",
   [
     authenticate,
+    ...authorizePaymentInitialization,
     check("returnUrl", "Return URL must be a valid URL").optional().isURL(),
   ],
   initializeChapaPayment

@@ -255,6 +255,116 @@ class NotificationService {
       console.error('Error sending payment reminder notification:', error);
       return { success: false, error: error.message };
     }
+
+  /**
+   * Send payment completed notification to user
+   * @param {Object} property - Property object
+   * @param {Object} user - User object
+   * @param {Object} payment - Payment object
+   */
+  static async sendPaymentCompletedNotification(property, user, payment) {
+    try {
+      const notification = {
+        type: 'payment_completed',
+        title: 'Payment Completed Successfully',
+        message: `Your payment of ${payment.amount} ${payment.currency} for property ${property.plotNumber} has been completed successfully. Your payment is now pending verification by our land officers.`,
+        userId: user._id,
+        propertyId: property._id,
+        priority: 'medium',
+        actionRequired: false,
+        actionUrl: `/property/${property._id}`,
+        metadata: {
+          propertyPlotNumber: property.plotNumber,
+          paymentAmount: payment.amount,
+          paymentCurrency: payment.currency,
+          paymentMethod: payment.paymentMethod,
+          completionDate: new Date().toISOString()
+        }
+      };
+
+      await this.createNotification(notification);
+
+      console.log('📧 Payment completion notification sent to user');
+    } catch (error) {
+      console.error('Error sending payment completion notification:', error);
+    }
+  }
+
+  /**
+   * Send payment verified notification to user
+   * @param {Object} property - Property object
+   * @param {Object} user - User object
+   * @param {Object} payment - Payment object
+   * @param {Object} verifiedBy - Land officer who verified the payment
+   */
+  static async sendPaymentVerifiedNotification(property, user, payment, verifiedBy) {
+    try {
+      const notification = {
+        type: 'payment_verified',
+        title: 'Payment Verified Successfully',
+        message: `Your payment of ${payment.amount} ${payment.currency} for property ${property.plotNumber} has been verified and approved. Your property registration is now ready for final approval.`,
+        userId: user._id,
+        propertyId: property._id,
+        priority: 'high',
+        actionRequired: false,
+        actionUrl: `/property/${property._id}`,
+        metadata: {
+          propertyPlotNumber: property.plotNumber,
+          paymentAmount: payment.amount,
+          paymentCurrency: payment.currency,
+          paymentMethod: payment.paymentMethod,
+          verifiedBy: verifiedBy.fullName || verifiedBy.email,
+          verifiedByRole: verifiedBy.role,
+          verificationDate: new Date().toISOString()
+        }
+      };
+
+      await this.createNotification(notification);
+
+      console.log('📧 Payment verification notification sent to user');
+    } catch (error) {
+      console.error('Error sending payment verification notification:', error);
+    }
+  }
+
+  /**
+   * Send payment rejected notification to user
+   * @param {Object} property - Property object
+   * @param {Object} user - User object
+   * @param {Object} payment - Payment object
+   * @param {Object} rejectedBy - Land officer who rejected the payment
+   * @param {string} reason - Rejection reason
+   */
+  static async sendPaymentRejectedNotification(property, user, payment, rejectedBy, reason) {
+    try {
+      const notification = {
+        type: 'payment_rejected',
+        title: 'Payment Rejected',
+        message: `Your payment of ${payment.amount} ${payment.currency} for property ${property.plotNumber} has been rejected. Reason: ${reason || 'No reason provided'}. You can submit a new payment to continue with your registration.`,
+        userId: user._id,
+        propertyId: property._id,
+        priority: 'high',
+        actionRequired: true,
+        actionUrl: `/property/${property._id}/payment`,
+        metadata: {
+          propertyPlotNumber: property.plotNumber,
+          paymentAmount: payment.amount,
+          paymentCurrency: payment.currency,
+          paymentMethod: payment.paymentMethod,
+          rejectedBy: rejectedBy.fullName || rejectedBy.email,
+          rejectedByRole: rejectedBy.role,
+          rejectionReason: reason || 'No reason provided',
+          rejectionDate: new Date().toISOString()
+        }
+      };
+
+      await this.createNotification(notification);
+
+      console.log('📧 Payment rejection notification sent to user');
+    } catch (error) {
+      console.error('Error sending payment rejection notification:', error);
+    }
+  }
   }
 
   /**

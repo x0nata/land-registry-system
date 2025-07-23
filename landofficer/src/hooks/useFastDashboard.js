@@ -9,8 +9,7 @@ export const useFastDashboard = () => {
   
   // Data states
   const [stats, setStats] = useState({
-    properties: { total: 45, pending: 12, approved: 28, rejected: 5 },
-    documents: { total: 150, pending: 25, verified: 120, rejected: 5 }
+    properties: { total: 45, pending: 12, approved: 28, rejected: 5, underReview: 0 }
   });
   const [pendingApplications, setPendingApplications] = useState([]);
   
@@ -34,8 +33,7 @@ export const useFastDashboard = () => {
       setStatsError(error);
       // Do not set any fallback data - only show real data
       setStats({
-        properties: { total: 0, pending: 0, approved: 0, rejected: 0 },
-        documents: { total: 0, pending: 0, verified: 0, rejected: 0 }
+        properties: { total: 0, pending: 0, approved: 0, rejected: 0, underReview: 0 }
       });
     } finally {
       setStatsLoading(false);
@@ -88,17 +86,13 @@ export const useFastDashboard = () => {
     if (!pendingAppsLoading) loadPendingApplications();
   }, []);
 
-  // Combined stats for easy access
+  // Combined stats for easy access - only use fallbacks when there's an error
   const combinedStats = {
-    totalProperties: stats.properties?.total || 45,
-    pendingProperties: stats.properties?.pending || 12,
-    approvedProperties: stats.properties?.approved || 28,
-    rejectedProperties: stats.properties?.rejected || 5,
-    underReviewProperties: stats.properties?.underReview || 0,
-    totalDocuments: stats.documents?.total || 150,
-    pendingDocuments: stats.documents?.pending || 25,
-    verifiedDocuments: stats.documents?.verified || 120,
-    rejectedDocuments: stats.documents?.rejected || 5
+    totalProperties: statsError ? 45 : (stats.properties?.total ?? 0),
+    pendingProperties: statsError ? 12 : (stats.properties?.pending ?? 0),
+    approvedProperties: statsError ? 28 : (stats.properties?.approved ?? 0),
+    rejectedProperties: statsError ? 5 : (stats.properties?.rejected ?? 0),
+    underReviewProperties: statsError ? 0 : (stats.properties?.underReview ?? 0)
   };
 
   // Overall loading state

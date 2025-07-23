@@ -378,7 +378,7 @@ export const getPendingPayments = async (req, res) => {
 // @access  Private (Admin, Land Officer)
 export const verifyPayment = async (req, res) => {
   try {
-    const payment = await Payment.findById(req.params.id);
+    const payment = await Payment.findById(req.params.id).populate('property');
 
     if (!payment) {
       return res.status(404).json({ message: "Payment not found" });
@@ -389,10 +389,31 @@ export const verifyPayment = async (req, res) => {
     payment.verifiedBy = req.user._id;
     payment.verificationDate = Date.now();
     payment.notes = req.body.notes || "";
+    payment.completedDate = new Date();
 
     const updatedPayment = await payment.save();
 
-    // Create application log
+    // Update property status
+    const property = payment.property;
+    if (property) {
+      property.paymentCompleted = true;
+      property.status = 'payment_completed';
+      await property.save();
+
+      // Create application log for property status update
+      await ApplicationLog.create({
+        property: property._id,
+        user: payment.user,
+        action: "property_payment_verified",
+        status: "payment_completed",
+        previousStatus: property.status,
+        performedBy: req.user._id,
+        performedByRole: req.user.role,
+        notes: `Payment verified by ${req.user.role}. Property ready for final approval.`,
+      });
+    }
+
+    // Create application log for payment verification
     await ApplicationLog.create({
       property: payment.property,
       user: payment.user,
@@ -403,6 +424,18 @@ export const verifyPayment = async (req, res) => {
       performedByRole: req.user.role,
       notes: req.body.notes || "Payment verified",
     });
+
+    // Send payment verification notification to user
+    try {
+      const { default: NotificationService } = await import('../services/notificationService.js');
+      const user = await User.findById(payment.user);
+      if (user && property) {
+        await NotificationService.sendPaymentVerifiedNotification(property, user, payment, req.user);
+      }
+    } catch (notificationError) {
+      console.error('Error sending payment verification notification:', notificationError);
+      // Don't fail the payment verification if notification fails
+    }
 
     res.json(updatedPayment);
   } catch (error) {
@@ -416,31 +449,64 @@ export const verifyPayment = async (req, res) => {
 // @access  Private (Admin, Land Officer)
 export const rejectPayment = async (req, res) => {
   try {
-    const payment = await Payment.findById(req.params.id);
+    const payment = await Payment.findById(req.params.id).populate('property');
 
     if (!payment) {
       return res.status(404).json({ message: "Payment not found" });
     }
 
-    // Update payment
-    payment.status = "failed";
+    // Update payment status to rejected (not failed, to distinguish from technical failures)
+    payment.status = "rejected";
     payment.verifiedBy = req.user._id;
     payment.verificationDate = Date.now();
     payment.notes = req.body.reason || "";
+    payment.rejectionReason = req.body.reason || "";
 
     const updatedPayment = await payment.save();
 
-    // Create application log
+    // Update property status back to documents_validated so user can retry payment
+    const property = payment.property;
+    if (property) {
+      property.paymentCompleted = false;
+      property.status = 'documents_validated';
+      await property.save();
+
+      // Create application log for property status update
+      await ApplicationLog.create({
+        property: property._id,
+        user: payment.user,
+        action: "property_payment_rejected",
+        status: "documents_validated",
+        previousStatus: "payment_pending",
+        performedBy: req.user._id,
+        performedByRole: req.user.role,
+        notes: `Payment rejected by ${req.user.role}. Reason: ${req.body.reason || 'No reason provided'}. User can retry payment.`,
+      });
+    }
+
+    // Create application log for payment rejection
     await ApplicationLog.create({
       property: payment.property,
       user: payment.user,
       action: "payment_rejected",
-      status: "failed",
+      status: "rejected",
       previousStatus: "pending",
       performedBy: req.user._id,
       performedByRole: req.user.role,
       notes: req.body.reason || "Payment rejected",
     });
+
+    // Send payment rejection notification to user
+    try {
+      const { default: NotificationService } = await import('../services/notificationService.js');
+      const user = await User.findById(payment.user);
+      if (user && property) {
+        await NotificationService.sendPaymentRejectedNotification(property, user, payment, req.user, req.body.reason);
+      }
+    } catch (notificationError) {
+      console.error('Error sending payment rejection notification:', notificationError);
+      // Don't fail the payment rejection if notification fails
+    }
 
     res.json(updatedPayment);
   } catch (error) {
@@ -847,6 +913,17 @@ export const processCBEBirrPayment = async (req, res) => {
         notes: `CBE Birr payment completed - Confirmation: ${processingResult.confirmationCode}`
       });
 
+      // Send payment completion notification
+      try {
+        const { default: NotificationService } = await import('../services/notificationService.js');
+        const user = await User.findById(payment.user);
+        if (user) {
+          await NotificationService.sendPaymentCompletedNotification(property, user, payment);
+        }
+      } catch (notificationError) {
+        console.error('Error sending payment completion notification:', notificationError);
+      }
+
       // Send payment success notification
       const user = await User.findById(payment.user);
       await NotificationService.sendPaymentSuccessNotification(payment, property, user);
@@ -960,6 +1037,17 @@ export const processTeleBirrPayment = async (req, res) => {
         performedByRole: 'user',
         notes: `TeleBirr payment completed - Confirmation: ${processingResult.confirmationCode}`
       });
+
+      // Send payment completion notification
+      try {
+        const { default: NotificationService } = await import('../services/notificationService.js');
+        const user = await User.findById(payment.user);
+        if (user) {
+          await NotificationService.sendPaymentCompletedNotification(property, user, payment);
+        }
+      } catch (notificationError) {
+        console.error('Error sending payment completion notification:', notificationError);
+      }
 
       // Send payment success notification
       const user = await User.findById(payment.user);

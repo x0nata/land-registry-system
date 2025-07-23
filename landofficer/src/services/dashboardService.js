@@ -45,8 +45,7 @@ export const getDashboardStats = async () => {
 
     // Initialize stats object
     let realStats = {
-      properties: { total: 0, pending: 0, approved: 0, rejected: 0, underReview: 0 },
-      documents: { total: 0, pending: 0, verified: 0, rejected: 0 }
+      properties: { total: 0, pending: 0, approved: 0, rejected: 0, underReview: 0 }
     };
 
     // Process pending properties

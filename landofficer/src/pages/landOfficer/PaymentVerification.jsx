@@ -54,18 +54,21 @@ const PaymentVerification = () => {
     try {
       if (isVerified) {
         await verifyPayment(selectedPayment._id, verificationNotes);
+        toast.success('Payment verified successfully. Property is now ready for final approval.');
       } else {
         await rejectPayment(selectedPayment._id, verificationNotes);
+        toast.success('Payment rejected. User can retry payment with the same property.');
       }
 
       setShowPaymentModal(false);
       setSelectedPayment(null);
       setVerificationNotes('');
 
-      toast.success(`Payment ${isVerified ? 'verified' : 'rejected'} successfully`);
+      // Refresh the payments list to show updated status
       fetchPayments();
     } catch (err) {
-      toast.error(err.message || 'Failed to verify payment');
+      console.error('Payment verification error:', err);
+      toast.error(err.message || 'Failed to process payment verification');
     }
   };
 
@@ -112,13 +115,21 @@ const PaymentVerification = () => {
   // Get status badge class
   const getStatusBadgeClass = (status) => {
     switch (status) {
-      case 'verified':
+      case 'completed':
         return 'bg-green-100 text-green-800';
       case 'rejected':
+        return 'bg-red-100 text-red-800';
+      case 'failed':
         return 'bg-red-100 text-red-800';
       case 'pending':
       case undefined:
         return 'bg-yellow-100 text-yellow-800';
+      case 'processing':
+        return 'bg-blue-100 text-blue-800';
+      case 'cancelled':
+        return 'bg-gray-100 text-gray-800';
+      case 'refunded':
+        return 'bg-purple-100 text-purple-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -325,9 +336,12 @@ const PaymentVerification = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(payment.verificationStatus)}`}>
-                            {payment.verificationStatus === 'verified' ? 'Verified' :
-                             payment.verificationStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                          <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(payment.status)}`}>
+                            {payment.status === 'completed' ? 'Verified' :
+                             payment.status === 'rejected' ? 'Rejected' :
+                             payment.status === 'failed' ? 'Failed' :
+                             payment.status === 'pending' ? 'Pending' :
+                             payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -338,7 +352,7 @@ const PaymentVerification = () => {
                           >
                             <ArrowDownTrayIcon className="h-5 w-5" />
                           </button>
-                          {payment.verificationStatus === undefined && (
+                          {payment.status === 'pending' && (
                             <button
                               onClick={() => {
                                 setSelectedPayment(payment);

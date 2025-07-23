@@ -2,37 +2,47 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
-  CreditCardIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   ArrowLeftIcon,
-  CurrencyDollarIcon
+  DocumentCheckIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { getPropertyById } from '../../services/propertyService';
-import { initializeChapaPayment, verifyChapaPayment } from '../../services/paymentService';
+import { getPropertyPayments } from '../../services/paymentService';
+import PaymentMethodSelector from '../../components/payment/PaymentMethodSelector';
 
 const PropertyPayment = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [processingFee, setProcessingFee] = useState(0);
+  const [payments, setPayments] = useState([]);
+  const [documentsStatus, setDocumentsStatus] = useState({
+    totalRequired: 4,
+    uploaded: 0,
+    validated: 0
+  });
 
   useEffect(() => {
-    fetchProperty();
+    fetchPropertyAndPayments();
   }, [id]);
 
-  const fetchProperty = async () => {
+  const fetchPropertyAndPayments = async () => {
     try {
       setLoading(true);
-      const propertyData = await getPropertyById(id);
-      setProperty(propertyData);
+      const [propertyData, paymentsData] = await Promise.all([
+        getPropertyById(id),
+        getPropertyPayments(id)
+      ]);
 
-      // Calculate processing fee
-      calculateFee(propertyData);
+      setProperty(propertyData);
+      setPayments(paymentsData || []);
+
+      // Check document status
+      checkDocumentStatus(propertyData);
     } catch (error) {
-      console.error('Error fetching property:', error);
+      console.error('Error fetching property and payments:', error);
       toast.error('Failed to load property details');
       navigate('/properties');
     } finally {
@@ -40,61 +50,59 @@ const PropertyPayment = () => {
     }
   };
 
-  const calculateFee = (propertyData) => {
-    // Base processing fee structure
-    const baseFees = {
-      residential: 500,
-      commercial: 1000,
-      industrial: 1500,
-      agricultural: 300
-    };
+  const checkDocumentStatus = (propertyData) => {
+    const requiredDocTypes = ['title_deed', 'id_copy', 'tax_clearance', 'application_form'];
+    const documents = propertyData.documents || [];
 
-    let fee = baseFees[propertyData.propertyType] || 500;
+    const uploaded = documents.length;
+    const validated = documents.filter(doc => doc.status === 'verified').length;
 
-    // Add area-based fee (1 ETB per square meter)
-    if (propertyData.area) {
-      fee += propertyData.area * 1;
-    }
-
-    setProcessingFee(Math.max(fee, 100)); // Minimum fee of 100 ETB
+    setDocumentsStatus({
+      totalRequired: requiredDocTypes.length,
+      uploaded,
+      validated,
+      allUploaded: uploaded >= requiredDocTypes.length,
+      allValidated: validated >= requiredDocTypes.length && propertyData.documentsValidated
+    });
   };
 
-  const handlePayment = async () => {
-    try {
-      setPaymentLoading(true);
-
-      // Initialize payment with Chapa
-      const paymentResponse = await initializeChapaPayment(
-        id,
-        `${window.location.origin}/property/${id}`
-      );
-
-      if (paymentResponse.success && paymentResponse.checkoutUrl) {
-        // Redirect to Chapa checkout
-        window.location.href = paymentResponse.checkoutUrl;
-      } else {
-        throw new Error('Failed to initialize payment');
-      }
-    } catch (error) {
-      console.error('Payment initialization error:', error);
-      toast.error(getPaymentErrorMessage(error));
-    } finally {
-      setPaymentLoading(false);
-    }
+  const handlePaymentInitiated = (paymentResult) => {
+    // Refresh payments after successful payment initiation
+    fetchPropertyAndPayments();
+    toast.success('Payment initiated successfully!');
   };
 
   const canProceedWithPayment = () => {
-    return property &&
-           property.documentsValidated &&
-           !property.paymentCompleted &&
-           property.status === 'documents_validated';
+    if (!property) return false;
+
+    // Check if all documents are uploaded and validated
+    if (!documentsStatus.allUploaded) {
+      return false;
+    }
+
+    if (!documentsStatus.allValidated) {
+      return false;
+    }
+
+    // Check if payment is not already completed
+    if (property.paymentCompleted) {
+      return false;
+    }
+
+    // Check property status
+    const validStatuses = ['documents_validated', 'payment_pending'];
+    return validStatuses.includes(property.status);
   };
 
   const getStatusMessage = () => {
     if (!property) return '';
 
-    if (!property.documentsValidated) {
-      return 'All documents must be validated before payment can be processed.';
+    if (!documentsStatus.allUploaded) {
+      return `Please upload all required documents (${documentsStatus.uploaded}/${documentsStatus.totalRequired} uploaded).`;
+    }
+
+    if (!documentsStatus.allValidated) {
+      return `All documents must be validated before payment (${documentsStatus.validated}/${documentsStatus.totalRequired} validated).`;
     }
 
     if (property.paymentCompleted) {
@@ -108,11 +116,16 @@ const PropertyPayment = () => {
     return '';
   };
 
-  const getPaymentErrorMessage = (error) => {
-    if (error.message?.includes('not configured')) {
-      return 'Payment service is currently unavailable. Please contact support.';
-    }
-    return error.message || 'Failed to initialize payment';
+  const getWorkflowStage = () => {
+    if (!property) return 'loading';
+
+    if (!documentsStatus.allUploaded) return 'document_upload';
+    if (!documentsStatus.allValidated) return 'document_validation';
+    if (!property.paymentCompleted) return 'payment';
+    if (property.status === 'payment_completed') return 'approval_pending';
+    if (property.status === 'approved') return 'completed';
+
+    return 'unknown';
   };
 
   if (loading) {
@@ -156,7 +169,7 @@ const PropertyPayment = () => {
         <p className="text-gray-600 mt-2">Complete your property registration payment</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Property Summary */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4">Property Summary</h2>
@@ -192,23 +205,61 @@ const PropertyPayment = () => {
           </div>
         </div>
 
-        {/* Payment Details */}
+        {/* Document Status */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">Payment Details</h2>
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <DocumentCheckIcon className="h-5 w-5 mr-2" />
+            Document Status
+          </h2>
 
           <div className="space-y-4">
-            <div className="border-b pb-4">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Processing Fee:</span>
-                <span className="text-2xl font-bold text-primary">{processingFee} ETB</span>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">
-                Includes base fee and area-based charges
-              </p>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Documents Uploaded:</span>
+              <span className={`font-medium ${documentsStatus.allUploaded ? 'text-green-600' : 'text-yellow-600'}`}>
+                {documentsStatus.uploaded}/{documentsStatus.totalRequired}
+              </span>
             </div>
 
-            {/* Status Messages */}
-            {!canProceedWithPayment() && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Documents Validated:</span>
+              <span className={`font-medium ${documentsStatus.allValidated ? 'text-green-600' : 'text-yellow-600'}`}>
+                {documentsStatus.validated}/{documentsStatus.totalRequired}
+              </span>
+            </div>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-600">Progress</span>
+                <span className="text-sm text-gray-600">
+                  {Math.round((documentsStatus.validated / documentsStatus.totalRequired) * 100)}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(documentsStatus.validated / documentsStatus.totalRequired) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {!documentsStatus.allValidated && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <div className="flex">
+                  <ClockIcon className="h-4 w-4 text-yellow-400 mr-2 mt-0.5" />
+                  <p className="text-sm text-yellow-700">
+                    All documents must be validated before payment can proceed.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Payment Section */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          {/* Status Messages */}
+          {!canProceedWithPayment() && (
+            <div className="mb-6">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex">
                   <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400 mr-2 mt-0.5" />
@@ -218,9 +269,11 @@ const PropertyPayment = () => {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {property.paymentCompleted && (
+          {property.paymentCompleted && (
+            <div className="mb-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <div className="flex">
                   <CheckCircleIcon className="h-5 w-5 text-green-400 mr-2 mt-0.5" />
@@ -232,54 +285,54 @@ const PropertyPayment = () => {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Payment Button */}
-            {canProceedWithPayment() && (
-              <div className="pt-4">
-                <button
-                  onClick={handlePayment}
-                  disabled={paymentLoading}
-                  className="w-full btn-primary flex items-center justify-center py-3"
-                >
-                  {paymentLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Initializing Payment...
-                    </>
-                  ) : (
-                    <>
-                      <CreditCardIcon className="h-5 w-5 mr-2" />
-                      Pay with Chapa
-                    </>
-                  )}
-                </button>
+          {/* Payment Method Selector */}
+          {canProceedWithPayment() && (
+            <PaymentMethodSelector
+              propertyId={id}
+              onPaymentInitiated={handlePaymentInitiated}
+            />
+          )}
 
-                <p className="text-xs text-gray-500 text-center mt-2">
-                  You will be redirected to Chapa's secure payment gateway
-                </p>
+          {/* Payment History */}
+          {payments.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-4">Payment History</h3>
+              <div className="space-y-3">
+                {payments.map((payment) => (
+                  <div key={payment._id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">{payment.amount} {payment.currency}</p>
+                        <p className="text-sm text-gray-600 capitalize">
+                          {payment.paymentMethod.replace('_', ' ')} • {payment.paymentType.replace('_', ' ')}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(payment.paymentDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        payment.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        payment.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                        payment.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                        payment.status === 'failed' ? 'bg-red-100 text-red-800' :
+                        payment.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                        payment.status === 'refunded' ? 'bg-purple-100 text-purple-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {payment.status === 'completed' ? 'VERIFIED' :
+                         payment.status === 'rejected' ? 'REJECTED' :
+                         payment.status.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Payment Methods Info */}
-      <div className="mt-8 bg-gray-50 rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Accepted Payment Methods</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center">
-            <CurrencyDollarIcon className="h-6 w-6 text-primary mr-2" />
-            <span>CBE Birr</span>
-          </div>
-          <div className="flex items-center">
-            <CurrencyDollarIcon className="h-6 w-6 text-primary mr-2" />
-            <span>Telebirr</span>
-          </div>
-          <div className="flex items-center">
-            <CreditCardIcon className="h-6 w-6 text-primary mr-2" />
-            <span>Credit/Debit Cards</span>
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -34,13 +34,12 @@ const LandOfficerDashboard = () => {
     }
   }, [user?.id, loading]); // Only depend on user ID and loading state
 
-  // Combined stats for easy access
+  // Use stats from the hook directly
   const combinedStats = {
-    pendingProperties: stats.properties?.pending || 0,
-    approvedProperties: stats.properties?.approved || 0,
-    rejectedProperties: stats.properties?.rejected || 0,
-    underReviewProperties: stats.properties?.underReview || 0,
-    totalDocuments: stats.documents?.total || 0
+    pendingProperties: stats.pendingProperties,
+    approvedProperties: stats.approvedProperties,
+    rejectedProperties: stats.rejectedProperties,
+    underReviewProperties: stats.underReviewProperties
   };
 
   // Format date
@@ -175,7 +174,7 @@ const LandOfficerDashboard = () => {
         )}
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {/* Pending Applications */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center mb-2">
@@ -225,18 +224,7 @@ const LandOfficerDashboard = () => {
             <p className="text-gray-600 mt-1">Properties</p>
           </div>
 
-          {/* Total Documents */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center mb-2">
-              <ChartBarIcon className="h-6 w-6 text-purple-600 mr-2" />
-              <h3 className="text-lg font-semibold">Documents</h3>
-            </div>
-            <div className="text-3xl font-bold text-purple-600">
-              {statsLoading ? <StatsLoading /> :
-                statsError ? '—' : combinedStats.totalDocuments}
-            </div>
-            <p className="text-gray-600 mt-1">Total</p>
-          </div>
+
         </div>
 
         {/* Pending Applications Table */}

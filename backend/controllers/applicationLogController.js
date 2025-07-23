@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import ApplicationLog from "../models/ApplicationLog.js";
 import Property from "../models/Property.js";
 import { validationResult } from "express-validator";
@@ -221,6 +222,20 @@ export const getUserRecentActivities = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
+    // Check if database is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.log("Database not connected, returning empty activities array");
+      return res.json([]);
+    }
+
+    // Validate user ID
+    if (!req.user || !req.user._id) {
+      console.error("No user ID found in request");
+      return res.status(400).json({
+        message: "Invalid user authentication"
+      });
+    }
+
     console.log('Fetching recent activities for user:', req.user._id);
 
     // Get activities where the user is either the owner or the performer
@@ -248,7 +263,7 @@ export const getUserRecentActivities = async (req, res) => {
       .limit(parseInt(limit))
       .sort({ timestamp: -1 });
 
-    console.log(`Found ${recentActivities.length} recent activities`);
+    console.log(`Found ${recentActivities.length} recent activities for user ${req.user._id}`);
     res.json(recentActivities);
   } catch (error) {
     console.error("Error fetching user recent activities:", error);
