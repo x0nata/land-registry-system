@@ -162,6 +162,16 @@ export const verifyDocument = async (propertyId, documentId, isVerified, notes) 
   }
 };
 
+// Get land officer reports
+export const getLandOfficerReports = async () => {
+  try {
+    const response = await api.get('/reports/land-officer');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'Failed to fetch land officer reports' };
+  }
+};
+
 // Get property transfer history (land officer/admin only)
 export const getPropertyTransferHistory = async (propertyId) => {
   try {

@@ -5,6 +5,7 @@ import {
   getUserStats,
   getDocumentStats,
   getPaymentStats,
+  getLandOfficerReports,
   generateApplicationReport,
   generateSummaryReport,
   downloadReport,
@@ -39,6 +40,11 @@ router.get("/documents", authenticate, isAdminOrLandOfficer, getDocumentStats);
 // @desc    Get payment statistics
 // @access  Admin, Land Officer
 router.get("/payments", authenticate, isAdminOrLandOfficer, getPaymentStats);
+
+// @route   GET /api/reports/land-officer
+// @desc    Get land officer specific reports
+// @access  Land Officer
+router.get("/land-officer", authenticate, isAdminOrLandOfficer, getLandOfficerReports);
 
 // @route   GET /api/reports/applications
 // @desc    Generate application statistics report

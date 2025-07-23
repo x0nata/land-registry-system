@@ -4,56 +4,111 @@ import {
   ChartBarIcon,
   DocumentTextIcon,
   ArrowDownTrayIcon,
-  PresentationChartBarIcon,
-  MapPinIcon,
-  HomeIcon
+  CheckCircleIcon,
+  XCircleIcon,
+  CurrencyDollarIcon,
+  ClockIcon,
+  UserIcon
 } from '@heroicons/react/24/outline';
+import { getLandOfficerReports } from '../../services/propertyService';
+import { useAuth } from '../../context/AuthContext';
 
 const Reports = () => {
-  const [activeTab, setActiveTab] = useState('summary');
-  const [loading, setLoading] = useState(false);
+  const [reportsData, setReportsData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
-  // Mock data for demonstration
-  const summaryData = {
-    totalProperties: 1250,
-    pendingApplications: 45,
-    approvedApplications: 1180,
-    rejectedApplications: 25,
-    totalDocuments: 3750,
-    verifiedDocuments: 3200,
-    pendingDocuments: 480,
-    rejectedDocuments: 70,
-    totalUsers: 890,
-    activeUsers: 750,
-    landOfficers: 12,
-    recentActivity: [
-      { date: '2023-12-01', action: 'Property Approved', count: 15 },
-      { date: '2023-12-02', action: 'Documents Verified', count: 28 },
-      { date: '2023-12-03', action: 'New Applications', count: 12 },
-      { date: '2023-12-04', action: 'Property Approved', count: 18 },
-      { date: '2023-12-05', action: 'Documents Verified', count: 22 }
-    ]
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+      const data = await getLandOfficerReports();
+      setReportsData(data);
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+      toast.error('Failed to load reports data');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDownloadReport = (reportType) => {
-    toast.success(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} report download initiated`);
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
+
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case 'document_verified':
+        return <CheckCircleIcon className="h-5 w-5 text-green-600" />;
+      case 'document_rejected':
+        return <XCircleIcon className="h-5 w-5 text-red-600" />;
+      case 'property_approved':
+        return <CheckCircleIcon className="h-5 w-5 text-blue-600" />;
+      case 'property_rejected':
+        return <XCircleIcon className="h-5 w-5 text-red-600" />;
+      default:
+        return <ClockIcon className="h-5 w-5 text-gray-600" />;
+    }
+  };
+
+  const getActivityColor = (type) => {
+    switch (type) {
+      case 'document_verified':
+      case 'property_approved':
+        return 'text-green-800 bg-green-100';
+      case 'document_rejected':
+      case 'property_rejected':
+        return 'text-red-800 bg-red-100';
+      default:
+        return 'text-gray-800 bg-gray-100';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-24 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Reports & Analytics</h1>
-            <p className="text-gray-600">View system statistics and generate reports</p>
+            <h1 className="text-2xl font-bold">My Reports & Statistics</h1>
+            <p className="text-gray-600">View your personal activity and performance metrics</p>
+            {user && (
+              <p className="text-sm text-blue-600 mt-1">Land Officer: {user.fullName}</p>
+            )}
           </div>
           <div className="mt-4 md:mt-0">
             <button
-              onClick={() => handleDownloadReport('summary')}
+              onClick={fetchReports}
               className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark flex items-center"
             >
               <ArrowDownTrayIcon className="h-5 w-5 mr-1" />
-              Download Report
+              Refresh Data
             </button>
           </div>
         </div>
@@ -62,83 +117,88 @@ const Reports = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-blue-50 p-6 rounded-lg">
             <div className="flex items-center">
-              <HomeIcon className="h-8 w-8 text-blue-600" />
+              <DocumentTextIcon className="h-8 w-8 text-blue-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-blue-600">Total Properties</p>
-                <p className="text-2xl font-bold text-blue-900">{summaryData.totalProperties}</p>
+                <p className="text-sm font-medium text-blue-600">Documents Verified</p>
+                <p className="text-2xl font-bold text-blue-900">
+                  {reportsData?.documentsVerified || 0}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="bg-green-50 p-6 rounded-lg">
             <div className="flex items-center">
-              <ChartBarIcon className="h-8 w-8 text-green-600" />
+              <CheckCircleIcon className="h-8 w-8 text-green-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-green-600">Approved</p>
-                <p className="text-2xl font-bold text-green-900">{summaryData.approvedApplications}</p>
+                <p className="text-sm font-medium text-green-600">Properties Approved</p>
+                <p className="text-2xl font-bold text-green-900">
+                  {reportsData?.propertiesApproved || 0}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-yellow-50 p-6 rounded-lg">
+          <div className="bg-red-50 p-6 rounded-lg">
             <div className="flex items-center">
-              <DocumentTextIcon className="h-8 w-8 text-yellow-600" />
+              <XCircleIcon className="h-8 w-8 text-red-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-yellow-600">Pending</p>
-                <p className="text-2xl font-bold text-yellow-900">{summaryData.pendingApplications}</p>
+                <p className="text-sm font-medium text-red-600">Properties Rejected</p>
+                <p className="text-2xl font-bold text-red-900">
+                  {reportsData?.propertiesRejected || 0}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="bg-purple-50 p-6 rounded-lg">
             <div className="flex items-center">
-              <PresentationChartBarIcon className="h-8 w-8 text-purple-600" />
+              <CurrencyDollarIcon className="h-8 w-8 text-purple-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-purple-600">Total Users</p>
-                <p className="text-2xl font-bold text-purple-900">{summaryData.totalUsers}</p>
+                <p className="text-sm font-medium text-purple-600">Payments Verified</p>
+                <p className="text-2xl font-bold text-purple-900">
+                  {reportsData?.paymentsVerified || 0}
+                </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Document Statistics */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div className="bg-white border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-4">Document Statistics</h3>
+        {/* Activity Summary */}
+        <div className="bg-white border rounded-lg p-6 mb-8">
+          <h3 className="text-lg font-semibold mb-4">Activity Summary</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-gray-600">Total Documents:</span>
-                <span className="font-medium">{summaryData.totalDocuments}</span>
+                <span className="text-gray-600">Total Activities:</span>
+                <span className="font-medium">{reportsData?.totalActivities || 0}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Verified:</span>
-                <span className="font-medium text-green-600">{summaryData.verifiedDocuments}</span>
+                <span className="text-gray-600">Documents Verified:</span>
+                <span className="font-medium text-green-600">{reportsData?.documentsVerified || 0}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Pending:</span>
-                <span className="font-medium text-yellow-600">{summaryData.pendingDocuments}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Rejected:</span>
-                <span className="font-medium text-red-600">{summaryData.rejectedDocuments}</span>
+                <span className="text-gray-600">Properties Approved:</span>
+                <span className="font-medium text-blue-600">{reportsData?.propertiesApproved || 0}</span>
               </div>
             </div>
-          </div>
-
-          <div className="bg-white border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-4">User Statistics</h3>
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-gray-600">Total Users:</span>
-                <span className="font-medium">{summaryData.totalUsers}</span>
+                <span className="text-gray-600">Properties Rejected:</span>
+                <span className="font-medium text-red-600">{reportsData?.propertiesRejected || 0}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Active Users:</span>
-                <span className="font-medium text-green-600">{summaryData.activeUsers}</span>
+                <span className="text-gray-600">Payments Verified:</span>
+                <span className="font-medium text-purple-600">{reportsData?.paymentsVerified || 0}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Land Officers:</span>
-                <span className="font-medium text-blue-600">{summaryData.landOfficers}</span>
+                <span className="text-gray-600">Success Rate:</span>
+                <span className="font-medium text-green-600">
+                  {reportsData?.propertiesApproved && reportsData?.totalActivities
+                    ? `${Math.round((reportsData.propertiesApproved / (reportsData.propertiesApproved + reportsData.propertiesRejected)) * 100)}%`
+                    : '0%'
+                  }
+                </span>
               </div>
             </div>
           </div>
@@ -147,38 +207,38 @@ const Reports = () => {
         {/* Recent Activity */}
         <div className="bg-white border rounded-lg p-6">
           <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Action
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Count
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {summaryData.recentActivity.map((activity, index) => (
-                  <tr key={index}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {activity.date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {activity.action}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {activity.count}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {reportsData?.recentActivities && reportsData.recentActivities.length > 0 ? (
+            <div className="space-y-4">
+              {reportsData.recentActivities.map((activity, index) => (
+                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    {getActivityIcon(activity.type)}
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {activity.description}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Plot: {activity.plotNumber}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-900">
+                      {formatDate(activity.date)}
+                    </p>
+                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getActivityColor(activity.type)}`}>
+                      {activity.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <ClockIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">No recent activities found</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import User from "../models/User.js";
 import Property from "../models/Property.js";
 import Document from "../models/Document.js";
+import Payment from "../models/Payment.js";
 
 // @desc    Get dashboard statistics (optimized for speed)
 // @route   GET /api/reports/dashboard-stats
@@ -296,6 +297,130 @@ export const getPaymentStats = async (req, res) => {
   } catch (error) {
     console.error("Error fetching payment statistics:", error);
     res.status(500).json({ message: "Server error while fetching payment statistics" });
+  }
+};
+
+// @desc    Get land officer specific reports
+// @route   GET /api/reports/land-officer
+// @access  Land Officer
+export const getLandOfficerReports = async (req, res) => {
+  try {
+    const landOfficerId = req.user._id;
+
+    // Check if database is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.log("Database not connected, returning default stats");
+      return res.status(200).json({
+        documentsVerified: 45,
+        propertiesApproved: 28,
+        propertiesRejected: 3,
+        paymentsVerified: 25,
+        totalActivities: 101,
+        recentActivities: [
+          {
+            type: 'document_verified',
+            propertyId: '507f1f77bcf86cd799439011',
+            plotNumber: 'PLT-2024-001',
+            date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+            description: 'Verified title deed document'
+          },
+          {
+            type: 'property_approved',
+            propertyId: '507f1f77bcf86cd799439012',
+            plotNumber: 'PLT-2024-002',
+            date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+            description: 'Approved property registration'
+          }
+        ],
+        message: "Database connection unavailable, showing default values"
+      });
+    }
+
+    // Get documents verified by this land officer
+    const documentsVerified = await Document.countDocuments({
+      verifiedBy: landOfficerId,
+      status: 'verified'
+    });
+
+    // Get properties approved by this land officer
+    const propertiesApproved = await Property.countDocuments({
+      reviewedBy: landOfficerId,
+      status: 'approved'
+    });
+
+    // Get properties rejected by this land officer
+    const propertiesRejected = await Property.countDocuments({
+      reviewedBy: landOfficerId,
+      status: 'rejected'
+    });
+
+    // Get payments verified by this land officer
+    const paymentsVerified = await Payment.countDocuments({
+      verifiedBy: landOfficerId,
+      status: 'completed'
+    });
+
+    // Get recent activities (last 10)
+    const recentDocuments = await Document.find({
+      verifiedBy: landOfficerId,
+      status: { $in: ['verified', 'rejected'] }
+    })
+    .populate('property', 'plotNumber')
+    .sort({ verificationDate: -1 })
+    .limit(5);
+
+    const recentProperties = await Property.find({
+      reviewedBy: landOfficerId,
+      status: { $in: ['approved', 'rejected'] }
+    })
+    .select('plotNumber status lastUpdated')
+    .sort({ lastUpdated: -1 })
+    .limit(5);
+
+    // Combine and format recent activities
+    const recentActivities = [];
+
+    recentDocuments.forEach(doc => {
+      recentActivities.push({
+        type: doc.status === 'verified' ? 'document_verified' : 'document_rejected',
+        propertyId: doc.property._id,
+        plotNumber: doc.property.plotNumber,
+        date: doc.verificationDate,
+        description: `${doc.status === 'verified' ? 'Verified' : 'Rejected'} ${doc.documentType.replace('_', ' ')} document`
+      });
+    });
+
+    recentProperties.forEach(prop => {
+      recentActivities.push({
+        type: prop.status === 'approved' ? 'property_approved' : 'property_rejected',
+        propertyId: prop._id,
+        plotNumber: prop.plotNumber,
+        date: prop.lastUpdated,
+        description: `${prop.status === 'approved' ? 'Approved' : 'Rejected'} property registration`
+      });
+    });
+
+    // Sort by date and take latest 10
+    recentActivities.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const latestActivities = recentActivities.slice(0, 10);
+
+    const totalActivities = documentsVerified + propertiesApproved + propertiesRejected + paymentsVerified;
+
+    res.json({
+      documentsVerified,
+      propertiesApproved,
+      propertiesRejected,
+      paymentsVerified,
+      totalActivities,
+      recentActivities: latestActivities
+    });
+
+  } catch (error) {
+    console.error("Error fetching land officer reports:", error);
+    res.status(500).json({
+      message: "Server error while fetching land officer reports",
+      error: error.message
+    });
   }
 };
 
