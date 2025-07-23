@@ -34,14 +34,25 @@ const Payments = () => {
   const fetchPropertiesNeedingPayment = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/properties/my-properties');
+      console.log('Current user:', user);
+      console.log('Fetching properties for user...');
+
+      const response = await api.get('/properties/user');
+      console.log('Properties API response:', response.data);
+
       const allProperties = response.data.properties || [];
-      
+      console.log('All user properties:', allProperties);
+
       // Filter properties that need payment (documents validated but payment not completed)
-      const propertiesNeedingPayment = allProperties.filter(property => 
-        property.status === 'documents_validated' && !property.paymentCompleted
+      const propertiesNeedingPayment = allProperties.filter(property =>
+        (property.status === 'documents_validated' || property.documentsValidated === true) &&
+        !property.paymentCompleted &&
+        property.status !== 'payment_pending' &&
+        property.status !== 'payment_completed'
       );
-      
+
+      console.log('Properties needing payment:', propertiesNeedingPayment);
+
       setProperties(propertiesNeedingPayment);
     } catch (error) {
       console.error('Error fetching properties:', error);

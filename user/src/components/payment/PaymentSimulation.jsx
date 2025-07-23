@@ -48,24 +48,31 @@ const PaymentSimulation = () => {
       await new Promise(resolve => setTimeout(resolve, delay));
 
       // Initialize payment with backend
-      const response = await api.post(`/payments/${paymentMethod}/initialize/${property._id}`, {
-        transactionId: txId,
-        amount: paymentCalculation?.summary?.totalAmount || 550,
+      const initializeData = {
         returnUrl: `${window.location.origin}/payments`
+      };
+
+      console.log('Initializing payment with data:', {
+        url: `/payments/${paymentMethod.replace('_', '-')}/initialize/${property._id}`,
+        data: initializeData,
+        property: property,
+        paymentMethod: paymentMethod
       });
+
+      const response = await api.post(`/payments/${paymentMethod.replace('_', '-')}/initialize/${property._id}`, initializeData);
 
       if (response.data.success) {
         // Simulate successful payment processing
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Process the payment
-        const processResponse = await api.post(`/payments/${paymentMethod}/process/${response.data.transactionId}`, {
+        const processResponse = await api.post(`/payments/${paymentMethod.replace('_', '-')}/process/${response.data.transactionId}`, {
           // Simulate payment method specific data
           ...(paymentMethod === 'cbe_birr' ? {
             cbeAccountNumber: '1000123456789',
-            cbePin: '****'
+            cbePin: '1234'
           } : {
-            telebirrPin: '****'
+            telebirrPin: '1234'
           })
         });
 
@@ -82,7 +89,16 @@ const PaymentSimulation = () => {
     } catch (error) {
       console.error('Payment simulation error:', error);
       setStep('error');
-      toast.error(error.message || 'Payment failed');
+
+      // Extract meaningful error message
+      let errorMessage = 'Payment failed';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
     } finally {
       setProcessing(false);
     }

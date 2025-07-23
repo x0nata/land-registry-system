@@ -23,6 +23,8 @@ const applicationLogSchema = new mongoose.Schema(
         "all_documents_validated",
         "payment_made",
         "payment_verified",
+        "property_payment_verified",
+        "payment_workflow_completed",
         "application_approved",
         "application_rejected",
         "application_updated",
