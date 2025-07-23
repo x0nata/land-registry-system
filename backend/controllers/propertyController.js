@@ -349,14 +349,31 @@ export const getPendingProperties = async (req, res) => {
 
     // For dashboard, use optimized query with minimal fields and short timeout
     if (dashboard === 'true') {
-      const pendingProperties = await Property.find({
-        status: { $in: ["pending", "under_review", "payment_completed"] }
-      })
-      .select('owner plotNumber location propertyType status registrationDate')
-      .populate("owner", "fullName")
-      .sort({ registrationDate: -1 }) // Newest first
-      .limit(parseInt(limit))
-      .maxTimeMS(3000); // 3 second timeout for dashboard
+      // Use separate queries for better reliability
+      const pendingProps = await Property.find({ status: "pending" })
+        .select('owner plotNumber location propertyType status registrationDate')
+        .populate("owner", "fullName")
+        .sort({ registrationDate: -1 })
+        .limit(Math.floor(parseInt(limit) / 3))
+        .maxTimeMS(3000);
+
+      const underReviewProps = await Property.find({ status: "under_review" })
+        .select('owner plotNumber location propertyType status registrationDate')
+        .populate("owner", "fullName")
+        .sort({ registrationDate: -1 })
+        .limit(Math.floor(parseInt(limit) / 3))
+        .maxTimeMS(3000);
+
+      const paymentCompletedProps = await Property.find({ status: "payment_completed" })
+        .select('owner plotNumber location propertyType status registrationDate')
+        .populate("owner", "fullName")
+        .sort({ registrationDate: -1 })
+        .limit(Math.floor(parseInt(limit) / 3))
+        .maxTimeMS(3000);
+
+      const pendingProperties = [...pendingProps, ...underReviewProps, ...paymentCompletedProps]
+        .sort((a, b) => new Date(b.registrationDate) - new Date(a.registrationDate))
+        .slice(0, parseInt(limit));
 
       return res.json({
         properties: pendingProperties,
@@ -366,22 +383,33 @@ export const getPendingProperties = async (req, res) => {
       });
     }
 
-    // Regular query for full property management - include all properties needing review
-    let query = Property.find({ status: { $in: ["pending", "under_review", "payment_completed"] } });
-
-    // Apply field selection if specified
-    if (fields) {
-      const selectedFields = fields.split(',').join(' ');
-      query = query.select(selectedFields);
-    }
-
-    const pendingProperties = await query
+    // Regular query for full property management - use separate queries for reliability
+    const pendingProps = await Property.find({ status: "pending" })
       .populate("owner", "fullName email nationalId")
-      .sort({ registrationDate: -1 }) // Changed from ascending to descending (newest first)
+      .sort({ registrationDate: -1 })
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit));
 
-    const total = await Property.countDocuments({ status: { $in: ["pending", "under_review", "payment_completed"] } });
+    const underReviewProps = await Property.find({ status: "under_review" })
+      .populate("owner", "fullName email nationalId")
+      .sort({ registrationDate: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const paymentCompletedProps = await Property.find({ status: "payment_completed" })
+      .populate("owner", "fullName email nationalId")
+      .sort({ registrationDate: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const pendingProperties = [...pendingProps, ...underReviewProps, ...paymentCompletedProps]
+      .sort((a, b) => new Date(b.registrationDate) - new Date(a.registrationDate))
+      .slice(0, parseInt(limit));
+
+    const totalPending = await Property.countDocuments({ status: "pending" });
+    const totalUnderReview = await Property.countDocuments({ status: "under_review" });
+    const totalPaymentCompleted = await Property.countDocuments({ status: "payment_completed" });
+    const total = totalPending + totalUnderReview + totalPaymentCompleted;
 
     res.json({
       properties: pendingProperties,
@@ -413,49 +441,96 @@ export const getAssignedProperties = async (req, res) => {
       limit = 10,
     } = req.query;
 
-    // Build query for properties assigned to this land officer
+    // Build base query for properties assigned to this land officer
     // Include all properties that need review (pending, under_review, payment_completed)
     // In a real system, you might have an assignedTo field
-    const query = {
-      status: { $in: ["pending", "under_review", "payment_completed"] }
-    };
+    let baseQuery = {};
 
-    // Filter by status if provided
+    // Filter by status if provided, otherwise include all review statuses
     if (status) {
-      query.status = status;
+      baseQuery.status = status;
     }
 
     // Filter by property type if provided
     if (propertyType) {
-      query.propertyType = propertyType;
+      baseQuery.propertyType = propertyType;
     }
 
     // Filter by location if provided
     if (subCity || kebele) {
-      query.location = {};
-      if (subCity) query.location.subCity = subCity;
-      if (kebele) query.location.kebele = kebele;
+      baseQuery.location = {};
+      if (subCity) baseQuery.location.subCity = subCity;
+      if (kebele) baseQuery.location.kebele = kebele;
     }
 
     // Search by plot number or owner's national ID
     if (search) {
-      query.$or = [{ plotNumber: { $regex: search, $options: "i" } }];
+      baseQuery.$or = [{ plotNumber: { $regex: search, $options: "i" } }];
     }
 
     // Pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Execute query
-    const properties = await Property.find(query)
-      .populate("owner", "fullName email nationalId")
-      .populate("documents")
-      .populate("reviewedBy", "fullName email")
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ registrationDate: -1 }); // Changed to newest first for consistency
+    // If specific status is requested, use single query
+    if (status) {
+      const properties = await Property.find(baseQuery)
+        .populate("owner", "fullName email nationalId")
+        .populate("documents")
+        .populate("reviewedBy", "fullName email")
+        .skip(skip)
+        .limit(parseInt(limit))
+        .sort({ registrationDate: -1 });
 
-    // Get total count for pagination
-    const total = await Property.countDocuments(query);
+      const total = await Property.countDocuments(baseQuery);
+
+      return res.json({
+        properties,
+        pagination: {
+          total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(total / parseInt(limit)),
+        },
+      });
+    }
+
+    // Otherwise, get all review statuses separately for reliability
+    const pendingQuery = { ...baseQuery, status: "pending" };
+    const underReviewQuery = { ...baseQuery, status: "under_review" };
+    const paymentCompletedQuery = { ...baseQuery, status: "payment_completed" };
+
+    const [pendingProps, underReviewProps, paymentCompletedProps] = await Promise.all([
+      Property.find(pendingQuery)
+        .populate("owner", "fullName email nationalId")
+        .populate("documents")
+        .populate("reviewedBy", "fullName email")
+        .sort({ registrationDate: -1 }),
+      Property.find(underReviewQuery)
+        .populate("owner", "fullName email nationalId")
+        .populate("documents")
+        .populate("reviewedBy", "fullName email")
+        .sort({ registrationDate: -1 }),
+      Property.find(paymentCompletedQuery)
+        .populate("owner", "fullName email nationalId")
+        .populate("documents")
+        .populate("reviewedBy", "fullName email")
+        .sort({ registrationDate: -1 })
+    ]);
+
+    // Combine and sort all properties
+    const allProperties = [...pendingProps, ...underReviewProps, ...paymentCompletedProps]
+      .sort((a, b) => new Date(b.registrationDate) - new Date(a.registrationDate));
+
+    // Apply pagination to combined results
+    const properties = allProperties.slice(skip, skip + parseInt(limit));
+
+    // Get total count
+    const [totalPending, totalUnderReview, totalPaymentCompleted] = await Promise.all([
+      Property.countDocuments(pendingQuery),
+      Property.countDocuments(underReviewQuery),
+      Property.countDocuments(paymentCompletedQuery)
+    ]);
+    const total = totalPending + totalUnderReview + totalPaymentCompleted;
 
     res.json({
       properties,
