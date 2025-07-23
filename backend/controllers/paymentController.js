@@ -396,8 +396,10 @@ export const verifyPayment = async (req, res) => {
     // Update property status
     const property = payment.property;
     if (property) {
+      const previousStatus = property.status;
       property.paymentCompleted = true;
       property.status = 'payment_completed';
+      property.lastUpdated = Date.now();
       await property.save();
 
       // Create application log for property status update
@@ -406,7 +408,7 @@ export const verifyPayment = async (req, res) => {
         user: payment.user,
         action: "property_payment_verified",
         status: "payment_completed",
-        previousStatus: property.status,
+        previousStatus: previousStatus,
         performedBy: req.user._id,
         performedByRole: req.user.role,
         notes: `Payment verified by ${req.user.role}. Property ready for final approval.`,

@@ -346,9 +346,9 @@ export const getPendingProperties = async (req, res) => {
     // For dashboard, use optimized query with minimal fields and short timeout
     if (dashboard === 'true') {
       const pendingProperties = await Property.find({
-        status: { $in: ["pending", "under_review"] }
+        status: { $in: ["pending", "under_review", "payment_completed"] }
       })
-      .select('owner plotNumber location propertyType status registrationDate')
+      .select('owner plotNumber location propertyType status registrationDate paymentCompleted')
       .populate("owner", "fullName")
       .sort({ registrationDate: -1 }) // Newest first
       .limit(parseInt(limit))
@@ -362,8 +362,8 @@ export const getPendingProperties = async (req, res) => {
       });
     }
 
-    // Regular query for full property management
-    let query = Property.find({ status: "pending" });
+    // Regular query for full property management - include all properties needing review
+    let query = Property.find({ status: { $in: ["pending", "under_review", "payment_completed"] } });
 
     // Apply field selection if specified
     if (fields) {
@@ -377,7 +377,7 @@ export const getPendingProperties = async (req, res) => {
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit));
 
-    const total = await Property.countDocuments({ status: "pending" });
+    const total = await Property.countDocuments({ status: { $in: ["pending", "under_review", "payment_completed"] } });
 
     res.json({
       properties: pendingProperties,
@@ -410,10 +410,10 @@ export const getAssignedProperties = async (req, res) => {
     } = req.query;
 
     // Build query for properties assigned to this land officer
-    // For now, we'll return all properties that need review (pending, under_review)
+    // Include all properties that need review (pending, under_review, payment_completed)
     // In a real system, you might have an assignedTo field
     const query = {
-      status: { $in: ["pending", "under_review"] }
+      status: { $in: ["pending", "under_review", "payment_completed"] }
     };
 
     // Filter by status if provided
