@@ -40,16 +40,30 @@ app.set('trust proxy', 1);
 let dbConnected = false;
 
 const initializeDatabase = async () => {
-  if (!dbConnected) {
-    try {
-      console.log('🔄 Initializing database connection...');
-      await connectDB();
+  // If already connected, return immediately
+  if (dbConnected && mongoose.connection.readyState === 1) {
+    return;
+  }
+
+  try {
+    console.log('🔄 Initializing database connection...');
+    console.log('🔄 Connection state before:', mongoose.connection.readyState);
+
+    const connection = await connectDB();
+
+    if (connection && mongoose.connection.readyState === 1) {
       dbConnected = true;
       console.log('✅ Database connected successfully');
-    } catch (error) {
-      console.error('❌ Database connection failed:', error.message);
-      // Don't throw in serverless environment, just log the error
+      console.log('✅ Connection state after:', mongoose.connection.readyState);
+    } else {
+      console.error('❌ Database connection failed - invalid state:', mongoose.connection.readyState);
+      dbConnected = false;
     }
+  } catch (error) {
+    console.error('❌ Database connection failed:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    dbConnected = false;
+    // Don't throw in serverless environment, just log the error
   }
 };
 
@@ -58,7 +72,9 @@ initializeDatabase();
 
 // Middleware to ensure database connection on each request (for serverless)
 app.use(async (req, res, next) => {
-  if (!dbConnected) {
+  // Always check connection state for serverless
+  if (!dbConnected || mongoose.connection.readyState !== 1) {
+    console.log('🔄 Database not connected, attempting to connect...');
     await initializeDatabase();
   }
   next();
@@ -186,12 +202,24 @@ app.use('/api', dbHealthCheckMiddleware);
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   // Ensure database connection
-  if (!dbConnected) {
+  if (!dbConnected || mongoose.connection.readyState !== 1) {
+    console.log('🔄 Health check: Database not connected, attempting to connect...');
     await initializeDatabase();
   }
 
   // Check actual database connection status
   const dbStatus = dbConnected && mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+
+  // Test database with a simple ping if connected
+  let pingResult = null;
+  if (mongoose.connection.readyState === 1) {
+    try {
+      await mongoose.connection.db.admin().ping();
+      pingResult = 'success';
+    } catch (pingError) {
+      pingResult = `failed: ${pingError.message}`;
+    }
+  }
 
   res.json({
     status: 'ok',
@@ -201,7 +229,16 @@ app.get('/api/health', async (req, res) => {
     database: dbStatus,
     dbReadyState: mongoose.connection.readyState,
     dbHost: mongoose.connection.host || 'unknown',
-    dbName: mongoose.connection.name || 'unknown'
+    dbName: mongoose.connection.name || 'unknown',
+    dbConnected: dbConnected,
+    mongoUri: process.env.MONGODB_URI ? 'configured' : 'missing',
+    ping: pingResult,
+    connectionStates: {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    }
   });
 });
 

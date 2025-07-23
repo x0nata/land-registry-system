@@ -128,10 +128,18 @@ const calculateBackoffDelay = (attempt) => {
 // Serverless database connection function
 const connectServerlessDB = async () => {
   try {
-    // Return cached connection if available
+    // Return cached connection if available and healthy
     if (cachedConnection && mongoose.connection.readyState === 1) {
       console.log('🔄 Using cached database connection');
-      return cachedConnection;
+      // Test the connection with a quick ping
+      try {
+        await mongoose.connection.db.admin().ping();
+        console.log('✅ Cached connection is healthy');
+        return cachedConnection;
+      } catch (pingError) {
+        console.warn('⚠️ Cached connection failed ping test, reconnecting...');
+        cachedConnection = null;
+      }
     }
 
     // Check for connection string
@@ -141,18 +149,35 @@ const connectServerlessDB = async () => {
     }
 
     console.log('🔄 Creating new serverless database connection...');
+    console.log('📍 Connection URI:', connectionUri?.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@'));
 
     // Close any existing connection
     if (mongoose.connection.readyState !== 0) {
+      console.log('🔄 Closing existing connection...');
       await mongoose.connection.close();
     }
 
+    // Set mongoose global options for serverless
+    mongoose.set('bufferCommands', false);
+    mongoose.set('strictQuery', false);
+
     // Create new connection with serverless options
     const options = getServerlessConnectionOptions();
+    console.log('⚙️ Connection options:', JSON.stringify({
+      serverSelectionTimeoutMS: options.serverSelectionTimeoutMS,
+      connectTimeoutMS: options.connectTimeoutMS,
+      maxPoolSize: options.maxPoolSize,
+      minPoolSize: options.minPoolSize
+    }, null, 2));
 
+    const startTime = Date.now();
     const conn = await mongoose.connect(connectionUri, options);
+    const connectionTime = Date.now() - startTime;
 
     cachedConnection = conn.connection;
+
+    // Verify connection is actually working
+    await mongoose.connection.db.admin().ping();
 
     // Initialize GridFS after successful connection
     try {
@@ -165,11 +190,13 @@ const connectServerlessDB = async () => {
     console.log('✅ Serverless MongoDB Connected Successfully!');
     console.log('📊 Host:', conn.connection.host);
     console.log('📊 Database:', conn.connection.name);
+    console.log(`⏱️ Connection time: ${connectionTime}ms`);
 
     return cachedConnection;
 
   } catch (error) {
     console.error('❌ Serverless MongoDB Connection Error:', error.message);
+    console.error('❌ Error stack:', error.stack);
     cachedConnection = null;
     throw error;
   }
