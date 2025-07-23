@@ -39,6 +39,7 @@ const LandOfficerDashboard = () => {
     pendingProperties: stats.properties?.pending || 0,
     approvedProperties: stats.properties?.approved || 0,
     rejectedProperties: stats.properties?.rejected || 0,
+    underReviewProperties: stats.properties?.underReview || 0,
     totalDocuments: stats.documents?.total || 0
   };
 
@@ -196,8 +197,16 @@ const LandOfficerDashboard = () => {
             </div>
             <div className="text-3xl font-bold text-blue-600">
               {pendingAppsLoading ? <StatsLoading /> :
-                pendingAppsError ? '—' :
-                pendingApplications.filter(app => app.status === 'under_review').length
+                pendingAppsError ? (statsError ? '—' : combinedStats.underReviewProperties) :
+                Math.max(
+                  pendingApplications.filter(app =>
+                    app.status === 'under_review' ||
+                    app.documentsValidated === true ||
+                    (app.documents && app.documents.length > 0) ||
+                    app.status === 'documents_validated'
+                  ).length,
+                  combinedStats.underReviewProperties
+                )
               }
             </div>
             <p className="text-gray-600 mt-1">In Progress</p>

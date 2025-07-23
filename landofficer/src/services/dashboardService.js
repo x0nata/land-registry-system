@@ -43,7 +43,11 @@ export const getDashboardStats = async () => {
       }
     });
 
-    let realStats = null;
+    // Initialize stats object
+    let realStats = {
+      properties: { total: 0, pending: 0, approved: 0, rejected: 0, underReview: 0 },
+      documents: { total: 0, pending: 0, verified: 0, rejected: 0 }
+    };
 
     // Process pending properties
     if (pendingResponse.status === 'fulfilled' && pendingResponse.value?.data) {
@@ -54,21 +58,9 @@ export const getDashboardStats = async () => {
 
       console.log('Pending data count:', pendingData.length);
 
-      // This is real data from API
-      realStats = {
-        properties: {
-          total: responseData.total || pendingData.length,
-          pending: pendingData.length,
-          approved: 0,
-          rejected: 0
-        },
-        documents: {
-          total: 0,
-          pending: 0,
-          verified: 0,
-          rejected: 0
-        }
-      };
+      // Update stats with pending data
+      realStats.properties.pending = pendingData.length;
+      realStats.properties.total = Math.max(realStats.properties.total, responseData.total || pendingData.length);
     }
 
     // Process all properties
@@ -80,42 +72,37 @@ export const getDashboardStats = async () => {
 
       console.log('All properties data count:', allData.length);
 
-      if (!realStats) {
-        realStats = {
-          properties: { total: 0, pending: 0, approved: 0, rejected: 0 },
-          documents: { total: 0, pending: 0, verified: 0, rejected: 0 }
-        };
-      }
+      // Update total from all properties response
+      realStats.properties.total = responseData.pagination?.total || responseData.total || allData.length;
 
-      realStats.properties.total = responseData.total || allData.length;
-
-      // Count by status
+      // Count by status and calculate under review
       const statusCounts = allData.reduce((acc, prop) => {
         acc[prop.status] = (acc[prop.status] || 0) + 1;
+
+        // Count properties that are "under review" - those with documents validated or in review status
+        if (prop.status === 'under_review' ||
+            prop.documentsValidated === true ||
+            (prop.documents && prop.documents.length > 0) ||
+            prop.status === 'documents_validated') {
+          acc.underReview = (acc.underReview || 0) + 1;
+        }
+
         return acc;
       }, {});
 
       realStats.properties.approved = statusCounts.approved || 0;
       realStats.properties.rejected = statusCounts.rejected || 0;
-      realStats.properties.pending = statusCounts.pending || 0;
+      realStats.properties.underReview = statusCounts.underReview || 0;
+      // Only update pending count if we didn't get it from the pending endpoint
+      if (pendingResponse.status !== 'fulfilled') {
+        realStats.properties.pending = statusCounts.pending || 0;
+      }
     }
 
-    // Return stats even if empty - this is still real data from API
-    if (realStats) {
-      console.log('Final stats to cache:', realStats);
-      cachePropertyStats(realStats);
-      return realStats;
-    }
-
-    // If we get here, API calls succeeded but returned no data
-    // This is still valid - return empty stats as real data
-    console.log('API calls succeeded but returned no data, returning empty stats');
-    const emptyStats = {
-      properties: { total: 0, pending: 0, approved: 0, rejected: 0 },
-      documents: { total: 0, pending: 0, verified: 0, rejected: 0 }
-    };
-    cachePropertyStats(emptyStats);
-    return emptyStats;
+    // Always return the stats we've collected
+    console.log('Final stats to cache:', realStats);
+    cachePropertyStats(realStats);
+    return realStats;
 
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);

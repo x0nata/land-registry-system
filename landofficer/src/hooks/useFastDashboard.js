@@ -94,6 +94,7 @@ export const useFastDashboard = () => {
     pendingProperties: stats.properties?.pending || 12,
     approvedProperties: stats.properties?.approved || 28,
     rejectedProperties: stats.properties?.rejected || 5,
+    underReviewProperties: stats.properties?.underReview || 0,
     totalDocuments: stats.documents?.total || 150,
     pendingDocuments: stats.documents?.pending || 25,
     verifiedDocuments: stats.documents?.verified || 120,
