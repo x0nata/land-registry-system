@@ -64,41 +64,45 @@ const Header = () => {
             </Link>
 
             {isAuthenticated() ? (
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  type="button"
-                  onClick={toggleDropdown}
-                  aria-haspopup="true"
-                  aria-expanded={isDropdownOpen}
-                  className="hover:text-secondary transition-colors px-4 py-2 rounded focus:outline-none"
+              <>
+                {/* Dashboard Link - Prominent in main nav */}
+                <Link
+                  to="/dashboard/user"
+                  className="bg-secondary hover:bg-secondary-dark text-white px-4 py-2 rounded-md transition-colors font-medium"
                 >
-                  {user?.fullName || "Account"}
-                </button>
-                {isDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
-                    <Link
-                      to="/dashboard/user"
-                      className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
-                      onClick={() => setIsDropdownOpen(false)}
-                    >
-                      Dashboard
-                    </Link>
-                    <Link
-                      to="/profile"
-                      className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
-                      onClick={() => setIsDropdownOpen(false)}
-                    >
-                      Profile
-                    </Link>
-                    <button
-                      onClick={handleLogout}
-                      className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-accent hover:text-white"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                )}
-              </div>
+                  Dashboard
+                </Link>
+
+                {/* User Menu Dropdown */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={toggleDropdown}
+                    aria-haspopup="true"
+                    aria-expanded={isDropdownOpen}
+                    className="hover:text-secondary transition-colors px-4 py-2 rounded focus:outline-none"
+                  >
+                    {user?.fullName || "Account"}
+                  </button>
+                  {isDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+                      <Link
+                        to="/profile"
+                        className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
+                        onClick={() => setIsDropdownOpen(false)}
+                      >
+                        Profile
+                      </Link>
+                      <button
+                        onClick={handleLogout}
+                        className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-accent hover:text-white"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
               <div className="flex space-x-4">
                 <Link
@@ -167,13 +171,16 @@ const Header = () => {
                 <div className="mb-3 px-2 py-1 bg-primary-dark rounded-md">
                   <span>{user.fullName}</span>
                 </div>
+
+                {/* Dashboard Link - Prominent in mobile nav */}
                 <Link
                   to="/dashboard/user"
-                  className="block hover:text-secondary transition-colors"
+                  className="block bg-secondary hover:bg-secondary-dark text-white px-3 py-2 rounded-md transition-colors font-medium mb-2"
                   onClick={toggleMenu}
                 >
                   Dashboard
                 </Link>
+
                 <Link
                   to="/profile"
                   className="block hover:text-secondary transition-colors"

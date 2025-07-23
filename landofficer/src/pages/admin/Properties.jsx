@@ -10,8 +10,10 @@ import {
 } from '@heroicons/react/24/outline';
 import * as propertyService from '../../services/propertyService';
 import * as userService from '../../services/userService';
+import { useAuth } from '../../context/AuthContext';
 
 const Properties = () => {
+  const { user } = useAuth();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,6 +29,9 @@ const Properties = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [limit] = useState(10);
+
+  // Check if user can approve/reject properties (only land officers)
+  const canApproveReject = user?.role === 'landOfficer';
 
   // Fetch properties on component mount and when filters change
   useEffect(() => {
@@ -324,7 +329,7 @@ const Properties = () => {
                             <MagnifyingGlassIcon className="h-4 w-4 mr-1" />
                             View
                           </button>
-                          {property.status === 'pending' && (
+                          {property.status === 'pending' && canApproveReject && (
                             <>
                               <button
                                 onClick={() => {
@@ -347,6 +352,11 @@ const Properties = () => {
                                 Reject
                               </button>
                             </>
+                          )}
+                          {property.status === 'pending' && !canApproveReject && (
+                            <span className="text-gray-500 text-sm italic">
+                              View only - Contact Land Officer for approval
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -480,7 +490,7 @@ const Properties = () => {
       )}
 
       {/* Approve Property Modal */}
-      {showApproveModal && selectedProperty && (
+      {showApproveModal && selectedProperty && canApproveReject && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h2 className="text-xl font-semibold mb-4">Approve Property</h2>
@@ -519,7 +529,7 @@ const Properties = () => {
       )}
 
       {/* Reject Property Modal */}
-      {showRejectModal && selectedProperty && (
+      {showRejectModal && selectedProperty && canApproveReject && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h2 className="text-xl font-semibold mb-4">Reject Property</h2>

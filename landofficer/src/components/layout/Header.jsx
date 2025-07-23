@@ -43,31 +43,46 @@ const Header = () => {
             </Link>
 
             {isAuthenticated() ? (
-              <div className="relative group">
-                <button className="hover:text-secondary transition-colors">
-                  {user.fullName}
-                </button>
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
+              <>
+                {/* Dashboard Link - Prominent in main nav */}
+                {user.role === 'admin' && (
                   <Link
-                    to={`/dashboard/${user.role}`}
-                    className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
+                    to="/admin/dashboard"
+                    className="bg-secondary hover:bg-secondary-dark text-white px-4 py-2 rounded-md transition-colors font-medium"
                   >
-                    Dashboard
+                    Admin Dashboard
                   </Link>
+                )}
+                {user.role === 'landOfficer' && (
                   <Link
-                    to="/profile"
-                    className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
+                    to="/landofficer/dashboard"
+                    className="bg-secondary hover:bg-secondary-dark text-white px-4 py-2 rounded-md transition-colors font-medium"
                   >
-                    Profile
+                    Land Officer Dashboard
                   </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-accent hover:text-white"
-                  >
-                    Logout
+                )}
+
+                {/* User Menu Dropdown */}
+                <div className="relative group">
+                  <button className="hover:text-secondary transition-colors">
+                    {user.fullName}
                   </button>
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
+                    <Link
+                      to="/profile"
+                      className="block px-4 py-2 text-gray-800 hover:bg-primary-lighter hover:text-white"
+                    >
+                      Profile
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-accent hover:text-white"
+                    >
+                      Logout
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </>
             ) : (
               <div className="flex space-x-3">
                 <Link
@@ -136,13 +151,27 @@ const Header = () => {
                 <div className="mb-3 px-2 py-1 bg-primary-dark rounded-md">
                   <span>{user.fullName}</span>
                 </div>
-                <Link
-                  to={`/dashboard/${user.role}`}
-                  className="block hover:text-secondary transition-colors"
-                  onClick={toggleMenu}
-                >
-                  Dashboard
-                </Link>
+
+                {/* Dashboard Link - Prominent in mobile nav */}
+                {user.role === 'admin' && (
+                  <Link
+                    to="/admin/dashboard"
+                    className="block bg-secondary hover:bg-secondary-dark text-white px-3 py-2 rounded-md transition-colors font-medium mb-2"
+                    onClick={toggleMenu}
+                  >
+                    Admin Dashboard
+                  </Link>
+                )}
+                {user.role === 'landOfficer' && (
+                  <Link
+                    to="/landofficer/dashboard"
+                    className="block bg-secondary hover:bg-secondary-dark text-white px-3 py-2 rounded-md transition-colors font-medium mb-2"
+                    onClick={toggleMenu}
+                  >
+                    Land Officer Dashboard
+                  </Link>
+                )}
+
                 <Link
                   to="/profile"
                   className="block hover:text-secondary transition-colors"

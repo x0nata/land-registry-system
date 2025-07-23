@@ -32,13 +32,37 @@ const Reports = () => {
   const fetchReportData = async () => {
     try {
       setLoading(true);
+      setError(null);
 
       switch (reportType) {
         case 'applications':
           // Fetch all properties to calculate application stats
-          const allProperties = await propertyService.getAllProperties();
-          const appStats = calculateApplicationStats(allProperties, timeframe);
-          setApplicationStats(appStats);
+          const allPropertiesResponse = await propertyService.getAllProperties({ limit: 1000 });
+          console.log('All properties response:', allPropertiesResponse);
+
+          // Extract properties array from response
+          const propertiesArray = allPropertiesResponse?.properties || [];
+          console.log('Properties array:', propertiesArray);
+
+          if (Array.isArray(propertiesArray)) {
+            const appStats = calculateApplicationStats(propertiesArray, timeframe);
+            setApplicationStats(appStats);
+          } else {
+            console.error('Properties is not an array:', propertiesArray);
+            setApplicationStats({
+              total: 0,
+              pending: 0,
+              approved: 0,
+              rejected: 0,
+              chartData: {
+                labels: ['Pending', 'Approved', 'Rejected'],
+                datasets: [{
+                  data: [0, 0, 0],
+                  backgroundColor: ['#fbbf24', '#10b981', '#ef4444']
+                }]
+              }
+            });
+          }
           break;
         case 'users':
           // Fetch user statistics
@@ -47,8 +71,24 @@ const Reports = () => {
           break;
         case 'properties':
           // Fetch all properties for property stats
-          const properties = await propertyService.getAllProperties();
-          setPropertyStats(calculatePropertyStats(properties));
+          const propertiesResponse = await propertyService.getAllProperties({ limit: 1000 });
+          console.log('Properties response:', propertiesResponse);
+
+          // Extract properties array from response
+          const propertiesData = propertiesResponse?.properties || [];
+
+          if (Array.isArray(propertiesData)) {
+            setPropertyStats(calculatePropertyStats(propertiesData));
+          } else {
+            console.error('Properties data is not an array:', propertiesData);
+            setPropertyStats({
+              total: 0,
+              byType: {},
+              byStatus: {},
+              byLocation: {},
+              totalArea: 0
+            });
+          }
           break;
         default:
           break;
@@ -57,13 +97,57 @@ const Reports = () => {
       setLoading(false);
     } catch (err) {
       console.error('Error fetching report data:', err);
-      setError('Failed to fetch report data');
+      setError(err.message || 'Failed to fetch report data');
       setLoading(false);
-      toast.error('Failed to fetch report data');
+
+      // Set default empty data on error
+      if (reportType === 'applications') {
+        setApplicationStats({
+          total: 0,
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+          chartData: {
+            labels: ['Pending', 'Approved', 'Rejected'],
+            datasets: [{
+              data: [0, 0, 0],
+              backgroundColor: ['#fbbf24', '#10b981', '#ef4444']
+            }]
+          }
+        });
+      } else if (reportType === 'properties') {
+        setPropertyStats({
+          total: 0,
+          byType: {},
+          byStatus: {},
+          byLocation: {},
+          totalArea: 0
+        });
+      }
+
+      toast.error(err.message || 'Failed to fetch report data');
     }
   };
 
   const calculateApplicationStats = (properties, timeframe) => {
+    // Safety check: ensure properties is an array
+    if (!Array.isArray(properties)) {
+      console.error('calculateApplicationStats: properties is not an array:', properties);
+      return {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        chartData: {
+          labels: ['Pending', 'Approved', 'Rejected'],
+          datasets: [{
+            data: [0, 0, 0],
+            backgroundColor: ['#fbbf24', '#10b981', '#ef4444']
+          }]
+        }
+      };
+    }
+
     // Calculate application statistics based on real property data
     const now = new Date();
     let startDate;
@@ -82,23 +166,25 @@ const Reports = () => {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    const filteredProperties = properties.filter(prop =>
-      new Date(prop.createdAt) >= startDate
-    );
+    const filteredProperties = properties.filter(prop => {
+      // Safety check for prop.createdAt
+      const createdAt = prop.createdAt || prop.registrationDate;
+      return createdAt && new Date(createdAt) >= startDate;
+    });
+
+    const pending = filteredProperties.filter(p => p.status === 'pending').length;
+    const approved = filteredProperties.filter(p => p.status === 'approved').length;
+    const rejected = filteredProperties.filter(p => p.status === 'rejected').length;
 
     return {
       total: filteredProperties.length,
-      pending: filteredProperties.filter(p => p.status === 'pending').length,
-      approved: filteredProperties.filter(p => p.status === 'approved').length,
-      rejected: filteredProperties.filter(p => p.status === 'rejected').length,
+      pending,
+      approved,
+      rejected,
       chartData: {
         labels: ['Pending', 'Approved', 'Rejected'],
         datasets: [{
-          data: [
-            filteredProperties.filter(p => p.status === 'pending').length,
-            filteredProperties.filter(p => p.status === 'approved').length,
-            filteredProperties.filter(p => p.status === 'rejected').length
-          ],
+          data: [pending, approved, rejected],
           backgroundColor: ['#fbbf24', '#10b981', '#ef4444']
         }]
       }
@@ -106,6 +192,18 @@ const Reports = () => {
   };
 
   const calculatePropertyStats = (properties) => {
+    // Safety check: ensure properties is an array
+    if (!Array.isArray(properties)) {
+      console.error('calculatePropertyStats: properties is not an array:', properties);
+      return {
+        total: 0,
+        byType: {},
+        byStatus: {},
+        byLocation: {},
+        totalArea: 0
+      };
+    }
+
     // Count properties by type
     const typeCount = {
       residential: 0,
@@ -129,6 +227,11 @@ const Reports = () => {
     let totalArea = 0;
 
     properties.forEach(property => {
+      // Safety check for property object
+      if (!property || typeof property !== 'object') {
+        return;
+      }
+
       // Count by type
       if (property.propertyType) {
         typeCount[property.propertyType] = (typeCount[property.propertyType] || 0) + 1;

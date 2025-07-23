@@ -41,6 +41,7 @@ import AdminSettings from './pages/admin/Settings';
 import AdminPayments from './pages/admin/Payments';
 import AdminDisputes from './pages/admin/Disputes';
 import AdminDisputeDetails from './pages/admin/DisputeDetails';
+import AdminTransferManagement from './pages/admin/TransferManagement';
 
 // Land Officer Pages
 import PropertyVerification from './pages/landOfficer/PropertyVerification';
@@ -294,6 +295,14 @@ function App() {
             }
           />
           <Route
+            path="/admin/transfers"
+            element={
+              <DashboardLayout>
+                <AdminTransferManagement />
+              </DashboardLayout>
+            }
+          />
+          <Route
             path="/admin/reports"
             element={
               <DashboardLayout>
@@ -312,7 +321,18 @@ function App() {
         </Route>
 
         {/* Not Found Route */}
-        <Route path="*" element={<NotFound />} />
+        <Route
+          path="*"
+          element={
+            <div className="flex flex-col min-h-screen">
+              <Header />
+              <main className="flex-grow">
+                <NotFound />
+              </main>
+              <Footer />
+            </div>
+          }
+        />
       </Routes>
     </Router>
   );

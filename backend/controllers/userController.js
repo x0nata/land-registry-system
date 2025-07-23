@@ -7,6 +7,9 @@ import { validationResult } from "express-validator";
 // @access  Admin
 export const getAllUsers = async (req, res) => {
   try {
+    console.log('getAllUsers called with query:', req.query);
+    console.log('User making request:', req.user?.email, 'Role:', req.user?.role);
+
     const { role, search, page = 1, limit = 10 } = req.query;
 
     // Build query
@@ -15,6 +18,7 @@ export const getAllUsers = async (req, res) => {
     // Filter by role if provided
     if (role) {
       query.role = role;
+      console.log('Filtering by role:', role);
     }
 
     // Search by name, email, or nationalId
@@ -29,15 +33,20 @@ export const getAllUsers = async (req, res) => {
     // Pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Execute query
+    console.log('Executing query:', query);
+
+    // Execute query with timeout
     const users = await User.find(query)
       .select("-password")
       .skip(skip)
       .limit(parseInt(limit))
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .maxTimeMS(10000); // 10 second timeout
 
     // Get total count for pagination
-    const total = await User.countDocuments(query);
+    const total = await User.countDocuments(query).maxTimeMS(5000);
+
+    console.log(`Found ${users.length} users out of ${total} total`);
 
     res.json({
       users,
@@ -50,7 +59,19 @@ export const getAllUsers = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching users:", error);
-    res.status(500).json({ message: "Server error while fetching users" });
+    console.error("Error stack:", error.stack);
+
+    // Provide more specific error messages
+    if (error.name === 'MongoTimeoutError') {
+      res.status(503).json({ message: "Database timeout - please try again" });
+    } else if (error.name === 'MongoNetworkError') {
+      res.status(503).json({ message: "Database connection error - please try again" });
+    } else {
+      res.status(500).json({
+        message: "Server error while fetching users",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
   }
 };
 

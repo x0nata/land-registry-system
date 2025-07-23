@@ -302,6 +302,9 @@ export const addEvidence = async (req, res) => {
 // @access  Private (Admin, Land Officer)
 export const getAllDisputes = async (req, res) => {
   try {
+    console.log('getAllDisputes called with query:', req.query);
+    console.log('User making request:', req.user?.email, 'Role:', req.user?.role);
+
     const {
       page = 1,
       limit = 10,
@@ -330,6 +333,8 @@ export const getAllDisputes = async (req, res) => {
       ];
     }
 
+    console.log('Dispute filter:', filter);
+
     // Build sort object
     const sort = {};
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
@@ -337,7 +342,7 @@ export const getAllDisputes = async (req, res) => {
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Get disputes with pagination
+    // Get disputes with pagination and timeout
     const disputes = await Dispute.find(filter)
       .populate('property', 'plotNumber location propertyType owner')
       .populate('disputant', 'fullName email phoneNumber')
@@ -345,10 +350,13 @@ export const getAllDisputes = async (req, res) => {
       .populate('resolution.resolvedBy', 'fullName')
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .maxTimeMS(10000); // 10 second timeout
 
     // Get total count for pagination
-    const total = await Dispute.countDocuments(filter);
+    const total = await Dispute.countDocuments(filter).maxTimeMS(5000);
+
+    console.log(`Found ${disputes.length} disputes out of ${total} total`);
 
     // Calculate pagination info
     const totalPages = Math.ceil(total / parseInt(limit));
@@ -368,7 +376,19 @@ export const getAllDisputes = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching all disputes:", error);
-    res.status(500).json({ message: "Server error while fetching disputes" });
+    console.error("Error stack:", error.stack);
+
+    // Provide more specific error messages
+    if (error.name === 'MongoTimeoutError') {
+      res.status(503).json({ message: "Database timeout - please try again" });
+    } else if (error.name === 'MongoNetworkError') {
+      res.status(503).json({ message: "Database connection error - please try again" });
+    } else {
+      res.status(500).json({
+        message: "Server error while fetching disputes",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
   }
 };
 

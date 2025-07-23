@@ -58,10 +58,17 @@ const AdminDisputes = () => {
   const [assignment, setAssignment] = useState({ assignedTo: '', notes: '' });
 
   useEffect(() => {
-    fetchDisputes();
-    if (user?.role === 'admin') {
-      fetchLandOfficers();
-    }
+    const fetchData = async () => {
+      // Fetch disputes
+      await fetchDisputes();
+
+      // Only fetch land officers once for admin users
+      if (user?.role === 'admin' && landOfficers.length === 0) {
+        await fetchLandOfficers();
+      }
+    };
+
+    fetchData();
   }, [currentPage, searchTerm, statusFilter, typeFilter]);
 
   const fetchDisputes = async () => {
@@ -80,7 +87,19 @@ const AdminDisputes = () => {
       setPagination(response.pagination || {});
     } catch (error) {
       console.error('Error fetching disputes:', error);
-      toast.error(error.message || 'Failed to fetch disputes');
+
+      // Provide more user-friendly error messages
+      if (error.message?.includes('timeout')) {
+        toast.error('Request timed out. Please try again.');
+      } else if (error.message?.includes('Network Error')) {
+        toast.error('Network error. Please check your connection.');
+      } else {
+        toast.error(error.message || 'Failed to fetch disputes');
+      }
+
+      // Set empty data on error to prevent UI issues
+      setDisputes([]);
+      setPagination({});
     } finally {
       setLoading(false);
     }
@@ -88,10 +107,16 @@ const AdminDisputes = () => {
 
   const fetchLandOfficers = async () => {
     try {
+      console.log('Fetching land officers...');
       const response = await getAllUsers({ role: 'landOfficer', limit: 100 });
+      console.log('Land officers response:', response);
       setLandOfficers(response.users || []);
     } catch (error) {
       console.error('Error fetching land officers:', error);
+
+      // Don't show error toast for land officers as it's not critical
+      // Just log the error and continue
+      setLandOfficers([]);
     }
   };
 

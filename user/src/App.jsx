@@ -11,6 +11,7 @@ import Home from './pages/Home';
 import About from './pages/About';
 import Services from './pages/Services';
 import Contact from './pages/Contact';
+import RegistrationGuide from './pages/RegistrationGuide';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import UserDashboard from './pages/user/Dashboard';
@@ -106,6 +107,18 @@ function App() {
               <Header />
               <main className="flex-grow">
                 <Contact />
+              </main>
+              <Footer />
+            </div>
+          }
+        />
+        <Route
+          path="/registration-guide"
+          element={
+            <div className="flex flex-col min-h-screen">
+              <Header />
+              <main className="flex-grow">
+                <RegistrationGuide />
               </main>
               <Footer />
             </div>

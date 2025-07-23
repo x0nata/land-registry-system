@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const NotFound = () => {
+  const { user, isAuthenticated } = useAuth();
+
   return (
     <div className="min-h-[70vh] flex flex-col items-center justify-center px-4 py-16">
       <h1 className="text-6xl font-bold text-ethiopian-green mb-4">404</h1>
@@ -8,12 +11,25 @@ const NotFound = () => {
       <p className="text-gray-600 text-center max-w-md mb-8">
         The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.
       </p>
-      <Link
-        to="/"
-        className="btn-primary px-6 py-3 rounded-md"
-      >
-        Return to Home
-      </Link>
+
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <Link
+          to="/"
+          className="btn-primary px-6 py-3 rounded-md"
+        >
+          Return to Home
+        </Link>
+
+        {/* Dashboard navigation for authenticated users */}
+        {isAuthenticated() && user && user.role === 'user' && (
+          <Link
+            to="/dashboard/user"
+            className="bg-secondary hover:bg-secondary-dark text-white px-6 py-3 rounded-md transition-colors font-medium"
+          >
+            Go to Dashboard
+          </Link>
+        )}
+      </div>
     </div>
   );
 };
