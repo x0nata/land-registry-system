@@ -26,35 +26,35 @@
 
 
 ✨ **Transforming Land Ownership with Seamless Innovation**
-- 🏛️ **Government-Grade Security** - Role-based access control and authentication
-- 📄 **Document Management** - GridFS storage with verification workflows
-- 💳 **Payment Integration** - Secure Chapa payment gateway integration
-- ⚖️ **Legal Compliance** - Ethiopian property law standards
-- 📊 **Comprehensive Reporting** - Real-time analytics and audit trails
+-  **Government-Grade Security** - Role-based access control and authentication
+-  **Document Management** - GridFS storage with verification workflows
+-  **Payment Integration** - Secure Chapa payment gateway integration
+-  **Legal Compliance** - Ethiopian property law standards
+-  **Comprehensive Reporting** - Real-time analytics and audit trails
 
 ## 📘 Overview
 **land-registry-system** is an all-in-one developer toolkit for building secure, scalable land registration and property management platforms. It automates environment setup, manages complex workflows, and integrates with external payment gateways to streamline property transactions.
 
-- 🛠️ **Automated Startup Orchestration** – Launches multiple services for development
-- 🔒 **Role-Based Security** – Middleware, authentication, and authorization
-- 📂 **Document & Payment Management** – GridFS, Chapa integration
-- 📊 **Logging & Reporting** – Audit logs and real-time reporting
-- ⚙️ **Configurable Architecture** – Env vars, port configs, and API endpoints
+-  **Automated Startup Orchestration** – Launches multiple services for development
+-  **Role-Based Security** – Middleware, authentication, and authorization
+-  **Document & Payment Management** – GridFS, Chapa integration
+-  **Logging & Reporting** – Audit logs and real-time reporting
+-  **Configurable Architecture** – Env vars, port configs, and API endpoints
 
 ## 🏗️ System Architecture
-### 🏛️ Land Officer Frontend
+###  Land Officer Frontend
 - **Purpose:** Admin interface for officials
 - **Users:** Land officers, administrators
 - **Features:** Verification, approval, reporting
 - **Access:** `http://localhost:3000`
 
-### 👥 User Frontend
+###  User Frontend
 - **Purpose:** Public interface
 - **Users:** Property owners, citizens
 - **Features:** Registration, document upload, Chapa payment
 - **Access:** `http://localhost:3002`
 
-### 🔗 Unified Backend
+###  Unified Backend
 - **Purpose:** Centralized API and database management
 - **Features:** Authentication, property management, payments, documents
 - **Access:** `https://land-registry-backend-plum.vercel.app`
